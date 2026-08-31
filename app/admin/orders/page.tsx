@@ -1,13 +1,17 @@
 import { redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import { isAdmin } from "@/lib/auth";
 import { listOrders } from "@/lib/db";
 import { formatSgd } from "@/lib/pricing";
 import { OrderStatusForm } from "@/components/OrderStatusForm";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 export const metadata = { title: "Orders" };
 
 export default async function AdminOrders() {
+  noStore();
   if (!(await isAdmin())) redirect("/admin/login");
   const orders = await listOrders();
   return (

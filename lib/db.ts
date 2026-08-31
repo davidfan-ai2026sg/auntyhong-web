@@ -160,12 +160,8 @@ export function defaultSettings(): Settings {
 }
 
 export async function getSettings(): Promise<Settings> {
-  try {
-    const store = await readDeskStore();
-    if (store.settings) return store.settings;
-  } catch {
-    /* desk store unavailable — use demo defaults so pages do not 500 */
-  }
+  const store = await readDeskStore();
+  if (store.settings) return store.settings;
   return defaultSettings();
 }
 
@@ -571,25 +567,17 @@ export async function createEnquiry(input: {
 }
 
 export async function listEnquiries(): Promise<Enquiry[]> {
-  try {
-    const store = await readDeskStore();
-    return [...store.enquiries].sort((a, b) => b.id - a.id);
-  } catch {
-    return [];
-  }
+  const store = await readDeskStore();
+  return [...store.enquiries].sort((a, b) => b.id - a.id);
 }
 
 export async function deleteEnquiry(id: number): Promise<boolean> {
   let removed = false;
-  try {
-    await mutateDeskStore((s) => {
-      const before = s.enquiries.length;
-      s.enquiries = s.enquiries.filter((e) => e.id !== id);
-      removed = s.enquiries.length < before;
-      return s;
-    });
-  } catch {
-    return false;
-  }
+  await mutateDeskStore((s) => {
+    const before = s.enquiries.length;
+    s.enquiries = s.enquiries.filter((e) => e.id !== id);
+    removed = s.enquiries.length < before;
+    return s;
+  });
   return removed;
 }

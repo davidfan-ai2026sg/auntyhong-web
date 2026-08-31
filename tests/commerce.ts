@@ -45,10 +45,15 @@ async function main() {
   assert.match(ref, /^AH-20260831-001$/);
 
   const { resetDbForTests, createOrder, findCustomerOrder, getOrder, setOrderStatus, quoteCart, createEnquiry, listEnquiries, getSettings, updateSettings } = await import("../lib/db");
-  const { resetDeskForTests } = await import("../lib/desk-store");
+  const { resetDeskForTests, deskStorage } = await import("../lib/desk-store");
   const { listProducts, findVariant, upsertProduct, updateProduct, deleteProduct, setProductStock } = await import("../lib/catalog");
   resetDbForTests();
   resetDeskForTests();
+  assert.equal(deskStorage(), "file");
+  process.env.VERCEL = "1";
+  assert.equal(deskStorage(), "blob");
+  delete process.env.VERCEL;
+  assert.equal(deskStorage(), "file");
 
   const quoted = await quoteCart([{ sku: "SQ0179319", qty: 3 }], "delivery", false);
   assert.equal(quoted.totals.total, 81);

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { unstable_noStore as noStore } from "next/cache";
 import type { Product } from "./catalog";
 import type { Enquiry, Settings } from "./db";
 
@@ -10,6 +11,8 @@ export type DeskStore = {
   settings: Settings;
   nextEnquiryId: number;
 };
+
+export type DeskStorage = "blob" | "file" | "tmp";
 
 const globalForDesk = globalThis as unknown as {
   ahDeskMemory?: DeskStore;
@@ -25,17 +28,57 @@ export function deskEpoch() {
 const CACHE_MS = 2000;
 const BLOB_PATH = "desk/store.json";
 
-export function deskFilePath() {
-  if (!process.env.VERCEL) {
-    const raw = process.env.DESK_PATH;
-    if (raw) return path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
-    return path.join(process.cwd(), "data/desk.json");
+/** Runtime env read. Bracket access avoids Next.js inlining `process.env.NAME` as empty from a cached build. */
+function runtimeEnv(name: string): string {
+  try {
+    const value = process.env[name];
+    return typeof value === "string" ? value.trim() : "";
+  } catch {
+    return "";
   }
-  return "/tmp/auntyhong-desk.json";
 }
 
+function onVercel() {
+  return Boolean(runtimeEnv("VERCEL"));
+}
+
+function blobToken() {
+  return runtimeEnv("BLOB_READ_WRITE_TOKEN");
+}
+
+/**
+ * On Vercel the kitchen desk is always Blob. @vercel/blob can authenticate via
+ * OIDC (VERCEL_OIDC_TOKEN + BLOB_STORE_ID) even when a long-lived token was
+ * missing at build time. Do not gate on process.env.BLOB_READ_WRITE_TOKEN —
+ * Next can replace that identifier with "" from the original 236e299 cache.
+ */
 function useBlob() {
-  return Boolean(process.env.VERCEL && process.env.BLOB_READ_WRITE_TOKEN);
+  if (onVercel()) return true;
+  return Boolean(blobToken());
+}
+
+export function deskStorage(): DeskStorage {
+  if (useBlob()) return "blob";
+  if (onVercel()) return "tmp";
+  return "file";
+}
+
+export function deskFilePath() {
+  if (onVercel()) return "/tmp/auntyhong-desk.json";
+  const raw = runtimeEnv("DESK_PATH");
+  if (raw) return path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
+  return path.join(process.cwd(), "data/desk.json");
+}
+
+function blobAuth(): { token?: string; storeId?: string; oidcToken?: string } {
+  const token = blobToken();
+  const storeId = runtimeEnv("BLOB_STORE_ID");
+  const oidcToken = runtimeEnv("VERCEL_OIDC_TOKEN");
+  return {
+    ...(token ? { token } : {}),
+    ...(storeId ? { storeId } : {}),
+    ...(oidcToken ? { oidcToken } : {}),
+  };
 }
 
 function cloneStore(store: DeskStore): DeskStore {
@@ -52,6 +95,14 @@ function memoryFresh() {
   return globalForDesk.ahDeskMemory && Date.now() - at < CACHE_MS
     ? globalForDesk.ahDeskMemory
     : undefined;
+}
+
+function skipStaticCache() {
+  try {
+    noStore();
+  } catch {
+    /* tests / non-Next */
+  }
 }
 
 async function withLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -114,63 +165,68 @@ async function writeFileStore(file: string, store: DeskStore) {
   await fs.promises.rename(tmp, file);
 }
 
+function deskUnavailable(cause?: unknown): Error {
+  const err = new Error("Kitchen desk storage is unavailable");
+  if (cause instanceof Error && cause.message) {
+    console.error("[desk] blob failed:", cause.name, cause.message);
+  } else if (cause) {
+    console.error("[desk] blob failed");
+  }
+  return err;
+}
+
 async function readBlobStore(): Promise<Partial<DeskStore> | null> {
-  const { list } = await import("@vercel/blob");
-  const { blobs } = await list({
-    prefix: "desk/store",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-  });
-  const blob =
-    blobs.find((b) => b.pathname === BLOB_PATH) ||
-    blobs.find((b) => b.pathname.startsWith("desk/store")) ||
-    blobs[0];
-  if (!blob?.url) return null;
-  const sep = blob.url.includes("?") ? "&" : "?";
-  const res = await fetch(`${blob.url}${sep}t=${Date.now()}`, { cache: "no-store" });
-  if (!res.ok) return null;
-  const parsed = (await res.json()) as Partial<DeskStore>;
-  if (!parsed || typeof parsed !== "object") return null;
-  return parsed;
+  try {
+    const { list } = await import("@vercel/blob");
+    const { blobs } = await list({
+      prefix: "desk/store",
+      ...blobAuth(),
+    });
+    const blob =
+      blobs.find((b) => b.pathname === BLOB_PATH) ||
+      blobs.find((b) => b.pathname.startsWith("desk/store")) ||
+      blobs[0];
+    if (!blob?.url) return null;
+    const sep = blob.url.includes("?") ? "&" : "?";
+    const res = await fetch(`${blob.url}${sep}t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`blob fetch ${res.status}`);
+    const parsed = (await res.json()) as Partial<DeskStore>;
+    if (!parsed || typeof parsed !== "object") throw new Error("blob json");
+    return parsed;
+  } catch (cause) {
+    throw deskUnavailable(cause);
+  }
 }
 
 async function writeBlobStore(store: DeskStore) {
-  const { put } = await import("@vercel/blob");
-  await put(BLOB_PATH, JSON.stringify(store), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-    cacheControlMaxAge: 60,
-  });
+  try {
+    const { put } = await import("@vercel/blob");
+    await put(BLOB_PATH, JSON.stringify(store), {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+      cacheControlMaxAge: 0,
+      ...blobAuth(),
+    });
+  } catch (cause) {
+    throw deskUnavailable(cause);
+  }
 }
 
 async function readFromBackend(): Promise<Partial<DeskStore> | null> {
   if (useBlob()) {
-    try {
-      const blob = await readBlobStore();
-      if (blob) return blob;
-    } catch {
-      /* blob unavailable — try local file so this instance does not 500 */
-    }
+    return readBlobStore();
   }
   return readFileStore(deskFilePath());
 }
 
 async function persistStore(store: DeskStore) {
   if (useBlob()) {
-    try {
-      await writeBlobStore(store);
-      return;
-    } catch {
-      /* keep a per-instance copy so the kitchen desk still works */
-    }
+    await writeBlobStore(store);
+    return;
   }
-  try {
-    await writeFileStore(deskFilePath(), store);
-  } catch {
-    /* memory remains the live copy */
-  }
+  await writeFileStore(deskFilePath(), store);
 }
 
 async function loadFresh(): Promise<DeskStore> {
@@ -185,11 +241,15 @@ async function loadFresh(): Promise<DeskStore> {
 }
 
 export async function readDeskStore(): Promise<DeskStore> {
-  const cached = memoryFresh();
-  if (cached) return cached;
+  skipStaticCache();
+  if (!useBlob()) {
+    const cached = memoryFresh();
+    if (cached) return cached;
+  }
   try {
     return await loadFresh();
-  } catch {
+  } catch (cause) {
+    if (useBlob()) throw cause;
     const fallback = await seedStore(globalForDesk.ahDeskMemory || null);
     setMemory(fallback);
     return fallback;
@@ -199,6 +259,7 @@ export async function readDeskStore(): Promise<DeskStore> {
 export async function mutateDeskStore(
   mutator: (store: DeskStore) => DeskStore | Promise<DeskStore>
 ): Promise<DeskStore> {
+  skipStaticCache();
   return withLock(async () => {
     const current = cloneStore(await loadFresh());
     const next = await mutator(current);
@@ -207,12 +268,8 @@ export async function mutateDeskStore(
     if (!Array.isArray(next.enquiries)) next.enquiries = current.enquiries;
     if (!next.settings) next.settings = current.settings;
     if (!next.nextEnquiryId) next.nextEnquiryId = current.nextEnquiryId;
+    await persistStore(next);
     setMemory(next);
-    try {
-      await persistStore(next);
-    } catch {
-      /* in-memory write still counts for this isolate */
-    }
     return next;
   });
 }

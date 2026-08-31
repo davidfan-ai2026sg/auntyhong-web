@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { isAdmin } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const ok = await isAdmin();
   if (!ok) return <>{children}</>;
