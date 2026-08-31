@@ -15,11 +15,11 @@ export async function POST(req: Request) {
   if (body.kind === "card") {
     if (process.env.STRIPE_SECRET_KEY) {
       return NextResponse.json(
-        { error: "Stripe Checkout is not wired in this demo. Use PayNow or DEMO_PAYMENTS." },
+        { error: "Stripe Checkout is not wired in this demo. Use PayNow instead." },
         { status: 400 }
       );
     }
-    if (process.env.DEMO_PAYMENTS !== "1") {
+    if (process.env.DEMO_PAYMENTS === "0") {
       return NextResponse.json({ error: "Card simulation is off" }, { status: 400 });
     }
     setOrderStatus(order.id, "payment_submitted", "demo_card");
