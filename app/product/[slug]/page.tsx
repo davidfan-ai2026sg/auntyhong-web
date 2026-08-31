@@ -7,7 +7,11 @@ export const dynamic = "force-dynamic";
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  return (await listProducts()).map((p) => ({ slug: p.slug }));
+  try {
+    return (await listProducts()).map((p) => ({ slug: p.slug }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {

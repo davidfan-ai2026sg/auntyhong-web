@@ -47,12 +47,22 @@ function blobToken() {
 }
 
 /**
- * On Vercel the kitchen desk is always Blob. @vercel/blob can authenticate via
- * OIDC (VERCEL_OIDC_TOKEN + BLOB_STORE_ID) even when a long-lived token was
- * missing at build time. Do not gate on process.env.BLOB_READ_WRITE_TOKEN —
- * Next can replace that identifier with "" from the original 236e299 cache.
+ * On Vercel the kitchen desk is always Blob at request time. @vercel/blob can
+ * authenticate via OIDC (VERCEL_OIDC_TOKEN + BLOB_STORE_ID) even when a
+ * long-lived token was missing at build time. Do not gate on
+ * process.env.BLOB_READ_WRITE_TOKEN — Next can replace that identifier with ""
+ * from the original 236e299 cache.
+ *
+ * `next build` still sets VERCEL=1 while collecting page data, and
+ * generateStaticParams would call Blob with no credentials. Skip Blob for that
+ * phase only; runtime requests keep using Blob and still 500 if it is down.
  */
+function isNextBuild() {
+  return runtimeEnv("NEXT_PHASE") === "phase-production-build";
+}
+
 function useBlob() {
+  if (isNextBuild()) return false;
   if (onVercel()) return true;
   return Boolean(blobToken());
 }
