@@ -25,7 +25,9 @@ export async function POST(req: Request) {
       qty_hint: String(body.qty_hint || "").trim(),
     });
     return NextResponse.json({ id });
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown";
+    console.error("[enquiry] save failed:", msg);
     return NextResponse.json({ error: "Could not save enquiry" }, { status: 500 });
   }
 }

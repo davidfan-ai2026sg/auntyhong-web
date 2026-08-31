@@ -184,40 +184,67 @@ function deskUnavailable(cause?: unknown): Error {
   return err;
 }
 
+function isBlobAccessMismatch(cause: unknown): boolean {
+  const msg = (
+    cause instanceof Error ? cause.message : typeof cause === "string" ? cause : ""
+  ).toLowerCase();
+  if (!msg) return false;
+  // Private stores reject access:"public" (and vice versa) with BlobAccessError /
+  // messages that mention public vs private access.
+  return (
+    (msg.includes("public") && msg.includes("private")) ||
+    msg.includes("access denied") ||
+    (cause instanceof Error && cause.name === "BlobAccessError")
+  );
+}
+
+async function readBlobBody(
+  access: "private" | "public"
+): Promise<Partial<DeskStore> | null> {
+  const { get } = await import("@vercel/blob");
+  const result = await get(BLOB_PATH, {
+    access,
+    useCache: false,
+    ...blobAuth(),
+  });
+  if (!result) return null;
+  if (!result.stream) throw new Error("blob empty stream");
+  const bodyText = await new Response(result.stream).text();
+  const parsed = JSON.parse(bodyText) as Partial<DeskStore>;
+  if (!parsed || typeof parsed !== "object") throw new Error("blob json");
+  return parsed;
+}
+
 async function readBlobStore(): Promise<Partial<DeskStore> | null> {
   try {
-    const { list } = await import("@vercel/blob");
-    const { blobs } = await list({
-      prefix: "desk/store",
-      ...blobAuth(),
-    });
-    const blob =
-      blobs.find((b) => b.pathname === BLOB_PATH) ||
-      blobs.find((b) => b.pathname.startsWith("desk/store")) ||
-      blobs[0];
-    if (!blob?.url) return null;
-    const sep = blob.url.includes("?") ? "&" : "?";
-    const res = await fetch(`${blob.url}${sep}t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`blob fetch ${res.status}`);
-    const parsed = (await res.json()) as Partial<DeskStore>;
-    if (!parsed || typeof parsed !== "object") throw new Error("blob json");
-    return parsed;
+    try {
+      return await readBlobBody("private");
+    } catch (privateErr) {
+      if (!isBlobAccessMismatch(privateErr)) throw privateErr;
+      return await readBlobBody("public");
+    }
   } catch (cause) {
     throw deskUnavailable(cause);
   }
 }
 
 async function writeBlobStore(store: DeskStore) {
+  const { put } = await import("@vercel/blob");
+  const body = JSON.stringify(store);
+  const baseOpts = {
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+    cacheControlMaxAge: 0,
+    ...blobAuth(),
+  };
   try {
-    const { put } = await import("@vercel/blob");
-    await put(BLOB_PATH, JSON.stringify(store), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-      cacheControlMaxAge: 0,
-      ...blobAuth(),
-    });
+    try {
+      await put(BLOB_PATH, body, { ...baseOpts, access: "private" });
+    } catch (privateErr) {
+      if (!isBlobAccessMismatch(privateErr)) throw privateErr;
+      await put(BLOB_PATH, body, { ...baseOpts, access: "public" });
+    }
   } catch (cause) {
     throw deskUnavailable(cause);
   }
