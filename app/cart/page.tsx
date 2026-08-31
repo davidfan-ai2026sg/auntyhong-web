@@ -9,10 +9,10 @@ export const metadata = { title: "Basket" };
 
 export default async function CartPage() {
   const lines = await readCart();
-  let quote = null as ReturnType<typeof quoteCart> | null;
+  let quote = null as Awaited<ReturnType<typeof quoteCart>> | null;
   let error = "";
   try {
-    quote = lines.length ? quoteCart(lines, "delivery", false) : null;
+    quote = lines.length ? await quoteCart(lines, "delivery", false) : null;
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not price basket";
   }

@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
 import { updateSettings } from "@/lib/db";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   if (!(await isAdmin())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
-  const s = updateSettings({
+  const s = await updateSettings({
     min_order: Number(body.min_order),
     delivery_fee: Number(body.delivery_fee),
     free_delivery_at: Number(body.free_delivery_at),

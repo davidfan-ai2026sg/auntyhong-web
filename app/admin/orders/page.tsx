@@ -4,6 +4,7 @@ import { listOrders } from "@/lib/db";
 import { formatSgd } from "@/lib/pricing";
 import { OrderStatusForm } from "@/components/OrderStatusForm";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Orders" };
 
 export default async function AdminOrders() {

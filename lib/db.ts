@@ -3,7 +3,8 @@ import path from "node:path";
 import type BetterSqlite3 from "better-sqlite3";
 import { cookies } from "next/headers";
 import { computeTotals, nextPayNowRef, type DeliveryKind, type OrderStatus } from "./pricing";
-import { findVariant } from "./catalog";
+import { findVariantIn, loadProducts } from "./catalog";
+import { mutateDeskStore, readDeskStore } from "./desk-store";
 
 const globalForDb = globalThis as unknown as { ahWebDb?: BetterSqlite3.Database };
 
@@ -158,27 +159,22 @@ export function defaultSettings(): Settings {
   };
 }
 
-export function getSettings(): Settings {
-  if (!ordersUseSqlite()) return defaultSettings();
+export async function getSettings(): Promise<Settings> {
   try {
-    const row = getDb().prepare("SELECT * FROM settings WHERE id = 1").get() as Settings | undefined;
-    if (row) return row;
+    const store = await readDeskStore();
+    if (store.settings) return store.settings;
   } catch {
-    /* sqlite unavailable — use demo defaults so pages do not 500 */
+    /* desk store unavailable — use demo defaults so pages do not 500 */
   }
   return defaultSettings();
 }
 
-export function updateSettings(patch: Partial<Settings>) {
-  const cur = getSettings();
-  const next = { ...cur, ...patch, id: 1, updated_at: nowIso() };
-  getDb()
-    .prepare(
-      `UPDATE settings SET min_order=@min_order, delivery_fee=@delivery_fee, free_delivery_at=@free_delivery_at,
-       express_fee=@express_fee, paynow_copy=@paynow_copy, updated_at=@updated_at WHERE id=1`
-    )
-    .run(next);
-  return getSettings();
+export async function updateSettings(patch: Partial<Settings>) {
+  const store = await mutateDeskStore((s) => {
+    s.settings = { ...s.settings, ...patch, id: 1, updated_at: nowIso() };
+    return s;
+  });
+  return store.settings;
 }
 
 export type CartLine = { sku: string; qty: number; options?: Record<string, string> };
@@ -241,12 +237,13 @@ function variantLabelForLine(base: string, options?: Record<string, string>) {
   return `${base} · ${opt}`;
 }
 
-export function quoteCart(lines: CartLine[], deliveryKind: DeliveryKind, expressSlot = false) {
-  const settings = getSettings();
+export async function quoteCart(lines: CartLine[], deliveryKind: DeliveryKind, expressSlot = false) {
+  const settings = await getSettings();
+  const products = await loadProducts();
   const items: QuotedItem[] = [];
   let subtotal = 0;
   for (const line of lines) {
-    const hit = findVariant(line.sku);
+    const hit = findVariantIn(products, line.sku);
     if (!hit) throw new Error(`Unknown SKU ${line.sku}`);
     if (!hit.variant.inStock) throw new Error(`${hit.product.title} is sold out`);
     const qty = Math.max(1, Math.floor(line.qty));
@@ -414,7 +411,7 @@ export async function createOrder(input: {
   express_slot: boolean;
   lines: CartLine[];
 }): Promise<OrderWithItems> {
-  const { items, totals } = quoteCart(input.lines, input.delivery_kind, input.express_slot);
+  const { items, totals } = await quoteCart(input.lines, input.delivery_kind, input.express_slot);
   if (!items.length) throw new Error("Cart is empty");
   if (totals.belowMinimum) throw new Error(`Minimum order is S$${totals.minOrder.toFixed(2)}`);
   if (!input.customer_name.trim()) throw new Error("Name is required");
@@ -536,7 +533,18 @@ export async function setOrderStatus(id: number, status: OrderStatus, paymentMet
   return next;
 }
 
-export function createEnquiry(input: {
+export type Enquiry = {
+  id: number;
+  company: string;
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+  qty_hint: string;
+  created_at: string;
+};
+
+export async function createEnquiry(input: {
   company: string;
   name: string;
   email: string;
@@ -544,24 +552,44 @@ export function createEnquiry(input: {
   message: string;
   qty_hint: string;
 }) {
-  const info = getDb()
-    .prepare(
-      `INSERT INTO enquiries (company, name, email, phone, message, qty_hint, created_at)
-       VALUES (@company, @name, @email, @phone, @message, @qty_hint, @now)`
-    )
-    .run({ ...input, now: nowIso() });
-  return Number(info.lastInsertRowid);
+  const store = await mutateDeskStore((s) => {
+    const id = s.nextEnquiryId++;
+    const row: Enquiry = {
+      id,
+      company: input.company,
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      message: input.message,
+      qty_hint: input.qty_hint,
+      created_at: nowIso(),
+    };
+    s.enquiries = [row, ...s.enquiries];
+    return s;
+  });
+  return store.enquiries[0]?.id ?? 0;
 }
 
-export function listEnquiries() {
-  return getDb().prepare("SELECT * FROM enquiries ORDER BY id DESC").all() as Array<{
-    id: number;
-    company: string;
-    name: string;
-    email: string;
-    phone: string;
-    message: string;
-    qty_hint: string;
-    created_at: string;
-  }>;
+export async function listEnquiries(): Promise<Enquiry[]> {
+  try {
+    const store = await readDeskStore();
+    return [...store.enquiries].sort((a, b) => b.id - a.id);
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteEnquiry(id: number): Promise<boolean> {
+  let removed = false;
+  try {
+    await mutateDeskStore((s) => {
+      const before = s.enquiries.length;
+      s.enquiries = s.enquiries.filter((e) => e.id !== id);
+      removed = s.enquiries.length < before;
+      return s;
+    });
+  } catch {
+    return false;
+  }
+  return removed;
 }

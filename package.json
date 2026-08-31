@@ -10,6 +10,7 @@
     "test": "tsx tests/commerce.ts"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.0",
     "better-sqlite3": "^11.8.1",
     "next": "^15.1.6",
     "qrcode": "^1.5.4",

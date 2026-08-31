@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3", "qrcode"],
+  serverExternalPackages: ["better-sqlite3", "qrcode", "@vercel/blob"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.squarespace-cdn.com" },

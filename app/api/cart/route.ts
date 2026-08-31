@@ -4,6 +4,9 @@ import { findVariant } from "@/lib/catalog";
 import { CART_COOKIE, CART_COOKIE_OPTS, cartLineKey, readCart, writeCart } from "@/lib/cart";
 import type { CartLine } from "@/lib/db";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 function parseOptions(raw: unknown): Record<string, string> | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const out: Record<string, string> = {};
@@ -13,8 +16,8 @@ function parseOptions(raw: unknown): Record<string, string> | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-function validateOptions(sku: string, options: Record<string, string> | undefined) {
-  const hit = findVariant(sku);
+async function validateOptions(sku: string, options: Record<string, string> | undefined) {
+  const hit = await findVariant(sku);
   if (!hit) return "Unknown product";
   const fields = hit.product.additionalFields || [];
   const opts = options || {};
@@ -36,13 +39,13 @@ export async function POST(req: Request) {
   const qty = Math.floor(Number(body.qty ?? 1));
   const op = body.op === "set" ? "set" : "add";
   const options = parseOptions(body.options);
-  const hit = findVariant(sku);
+  const hit = await findVariant(sku);
   if (!hit) return NextResponse.json({ error: "Unknown product" }, { status: 400 });
   if (op === "add" && !hit.variant.inStock) {
     return NextResponse.json({ error: "Sold out" }, { status: 400 });
   }
   if (op === "add") {
-    const invalid = validateOptions(sku, options);
+    const invalid = await validateOptions(sku, options);
     if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
   }
   const lines = await readCart();

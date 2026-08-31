@@ -2,9 +2,11 @@ import Link from "next/link";
 import { featured, NAMED_IMAGES, listProducts } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 
-export default function HomePage() {
-  const gifts = featured();
-  const teas = listProducts().filter((p) => p.categories.some((c) => /tea/i.test(c)));
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const gifts = await featured();
+  const teas = (await listProducts()).filter((p) => p.categories.some((c) => /tea/i.test(c)));
   return (
     <div>
       <section className="relative min-h-[78vh] overflow-hidden bg-cocoa text-parchment">

@@ -2,6 +2,9 @@ node_modules
 .next
 data/app.db
 data/app.db-*
+data/desk.json
 .env
 .env.local
 *.log
+
+*.tsbuildinfo

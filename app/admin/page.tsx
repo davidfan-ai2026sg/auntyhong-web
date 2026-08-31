@@ -2,12 +2,18 @@ import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { listOrders, listEnquiries } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Kitchen desk" };
 
 export default async function AdminHome() {
   if (!(await isAdmin())) redirect("/admin/login");
   const orders = await listOrders();
-  const enquiries = listEnquiries();
+  let enquiries: Awaited<ReturnType<typeof listEnquiries>> = [];
+  try {
+    enquiries = await listEnquiries();
+  } catch {
+    enquiries = [];
+  }
   return (
     <div>
       <h1 className="display text-4xl">Overview</h1>

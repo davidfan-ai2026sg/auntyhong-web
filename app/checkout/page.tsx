@@ -18,7 +18,7 @@ export default async function CheckoutPage() {
     );
   }
   try {
-    const quote = quoteCart(lines, "delivery", false);
+    const quote = await quoteCart(lines, "delivery", false);
     return (
       <div className="mx-auto max-w-3xl px-5 py-14">
         <p className="kicker">Place order</p>

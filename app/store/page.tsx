@@ -1,6 +1,7 @@
 import { categories, listProducts } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Shop" };
 
 export default function StorePage({
@@ -13,8 +14,8 @@ export default function StorePage({
 
 async function StoreInner({ searchParams }: { searchParams: Promise<{ cat?: string }> }) {
   const { cat } = await searchParams;
-  const all = listProducts();
-  const cats = categories();
+  const all = await listProducts();
+  const cats = await categories();
   const active = cat && cat !== "All" ? cat : "All";
   const shown = active === "All" ? all : all.filter((p) => p.categories.includes(active));
   return (

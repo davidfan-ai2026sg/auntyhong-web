@@ -3,19 +3,22 @@ import { getProduct, listProducts } from "@/lib/catalog";
 import { formatSgd } from "@/lib/pricing";
 import { AddToCart } from "@/components/AddToCart";
 
-export function generateStaticParams() {
-  return listProducts().map((p) => ({ slug: p.slug }));
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  return (await listProducts()).map((p) => ({ slug: p.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const p = getProduct(slug);
+  const p = await getProduct(slug);
   return { title: p?.title ?? "Product" };
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = getProduct(slug);
+  const product = await getProduct(slug);
   if (!product) notFound();
   const priceCopy = product.soldOut
     ? "Sold out"
