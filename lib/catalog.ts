@@ -10,6 +10,12 @@ export type Variant = {
   inStock: boolean;
 };
 
+export type AdditionalField = {
+  title: string;
+  required: boolean;
+  options: string[];
+};
+
 export type Product = {
   slug: string;
   title: string;
@@ -20,6 +26,7 @@ export type Product = {
   soldOut: boolean;
   variants: Variant[];
   fromPrice: number;
+  additionalFields: AdditionalField[];
 };
 
 const IMAGE_OVERRIDES: Record<string, string> = {
@@ -63,6 +70,7 @@ const products: Product[] = (catalogJson as Array<{
     unlimited: boolean;
   }>;
   soldOut: boolean;
+  additionalFields?: AdditionalField[];
 }>).map((raw) => {
   const slug = raw.url.replace("/store/p/", "");
   const variants: Variant[] = raw.variants.map((v) => {
@@ -92,6 +100,7 @@ const products: Product[] = (catalogJson as Array<{
     soldOut: raw.soldOut || variants.every((v) => !v.inStock),
     variants,
     fromPrice: Math.min(...variants.map((v) => v.price)),
+    additionalFields: raw.additionalFields || [],
   };
 });
 

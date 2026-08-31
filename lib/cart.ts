@@ -1,11 +1,16 @@
 import { cookies } from "next/headers";
 import type { CartLine } from "./db";
 
-const COOKIE = "ah_cart";
+export const CART_COOKIE = "ah_cart";
+export const CART_COOKIE_OPTS = { path: "/", httpOnly: false, sameSite: "lax" as const };
+
+export function cartLineKey(sku: string, options?: Record<string, string>) {
+  return sku + "::" + JSON.stringify(options || {});
+}
 
 export async function readCart(): Promise<CartLine[]> {
   const jar = await cookies();
-  const raw = jar.get(COOKIE)?.value;
+  const raw = jar.get(CART_COOKIE)?.value;
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as CartLine[];
@@ -17,7 +22,7 @@ export async function readCart(): Promise<CartLine[]> {
 
 export async function writeCart(lines: CartLine[]) {
   const jar = await cookies();
-  jar.set(COOKIE, JSON.stringify(lines), { path: "/", httpOnly: false, sameSite: "lax" });
+  jar.set(CART_COOKIE, JSON.stringify(lines), CART_COOKIE_OPTS);
 }
 
 export async function cartCount() {

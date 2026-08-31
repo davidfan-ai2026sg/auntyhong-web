@@ -5,6 +5,8 @@ import { Footer } from "@/components/Footer";
 import { DemoRibbon } from "@/components/DemoRibbon";
 import { cartCount } from "@/lib/cart";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: {
     default: "Aunty Hong — Design Demo",

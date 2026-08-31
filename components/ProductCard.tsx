@@ -3,6 +3,11 @@ import type { Product } from "@/lib/catalog";
 import { formatSgd } from "@/lib/pricing";
 
 export function ProductCard({ product, large }: { product: Product; large?: boolean }) {
+  const priceCopy = product.soldOut
+    ? "Sold out"
+    : product.variants.length === 1
+      ? formatSgd(product.fromPrice)
+      : `from ${formatSgd(product.fromPrice)}`;
   return (
     <Link href={`/product/${product.slug}`} className="group block">
       <div className={`overflow-hidden bg-sand ${large ? "aspect-[4/5]" : "aspect-square"}`}>
@@ -15,9 +20,7 @@ export function ProductCard({ product, large }: { product: Product; large?: bool
       </div>
       <div className="mt-4">
         <p className="display text-2xl leading-tight">{product.title}</p>
-        <p className="mt-1 text-sm text-cocoa/60">
-          {product.soldOut ? "Sold out" : `from ${formatSgd(product.fromPrice)}`}
-        </p>
+        <p className="mt-1 text-sm text-cocoa/60">{priceCopy}</p>
       </div>
     </Link>
   );

@@ -76,7 +76,37 @@
         "unlimited": false
       }
     ],
-    "soldOut": false
+    "soldOut": false,
+    "additionalFields": [
+      {
+        "title": "Cookie Tin #1",
+        "required": true,
+        "options": [
+          "Almond Butter Cookies",
+          "Melty Kuih Bangkit",
+          "Malty Cashew Bars",
+          "Emping Belinjau Cookies",
+          "Premium Prawn Rolls",
+          "Spicy Floss Samosas",
+          "Golden Peanut Puffs",
+          "Cashew Butter Cookies"
+        ]
+      },
+      {
+        "title": "Cookie Tin #2",
+        "required": true,
+        "options": [
+          "Almond Butter Cookies",
+          "Melty Kuih Bangkit",
+          "Malty Cashew Bars",
+          "Emping Belinjau Cookies",
+          "Premium Prawn Rolls",
+          "Spicy Floss Samosas",
+          "Golden Peanut Puffs",
+          "Cashew Butter Cookies"
+        ]
+      }
+    ]
   },
   {
     "title": "Spring Blossom Box 花開富貴",
@@ -96,7 +126,44 @@
         "unlimited": false
       }
     ],
-    "soldOut": true
+    "soldOut": true,
+    "additionalFields": [
+      {
+        "title": "Glass Jar #1",
+        "required": true,
+        "options": [
+          "Premium Prawn Rolls",
+          "Japanese Baked Shiitake Mushroom Chips",
+          "Tom Yum Goong Cashews"
+        ]
+      },
+      {
+        "title": "Glass Jar #2",
+        "required": true,
+        "options": [
+          "Premium Prawn Rolls",
+          "Japanese Baked Shiitake Mushroom Chips",
+          "Tom Yum Goong Cashews"
+        ]
+      },
+      {
+        "title": "Keropok Selection",
+        "required": true,
+        "options": [
+          "Shrimp Fries",
+          "Sweet & Spicy Belinjau Keropok",
+          "Himalayan Salted Classic Belinjau Keropok"
+        ]
+      },
+      {
+        "title": "Tea",
+        "required": true,
+        "options": [
+          "White Peach Oolong Tea",
+          "Sun Moon Lake Tea"
+        ]
+      }
+    ]
   },
   {
     "title": "The Prosperity Mix 五福臨門",
@@ -116,7 +183,59 @@
         "unlimited": false
       }
     ],
-    "soldOut": false
+    "soldOut": false,
+    "additionalFields": [
+      {
+        "title": "Tin #1",
+        "required": true,
+        "options": [
+          "Sweet & Spicy Belinjau Keropok",
+          "Shrimp Fries",
+          "Traditional Shrimp Keropok",
+          "Balinese White Fish Keropok",
+          "Mini Traditional Shrimp Keropok",
+          "Himalayan Salted Classic Belinjau Keropok"
+        ]
+      },
+      {
+        "title": "Tin #2",
+        "required": true,
+        "options": [
+          "Sweet & Spicy Belinjau Keropok",
+          "Shrimp Fries",
+          "Traditional Shrimp Keropok",
+          "Balinese White Fish Keropok",
+          "Mini Traditional Shrimp Keropok",
+          "Himalayan Salted Classic Belinjau Keropok"
+        ]
+      },
+      {
+        "title": "Glass Jar #1",
+        "required": true,
+        "options": [
+          "Premium Prawn Rolls",
+          "Japanese Baked Shiitake Mushroom Chips",
+          "Tom Yum Goong Cashews"
+        ]
+      },
+      {
+        "title": "Cookie Tin #1",
+        "required": true,
+        "options": [
+          "Almond Butter Cookies",
+          "Melty Kuih Bangkit",
+          "Emping Belinjau Cookies"
+        ]
+      },
+      {
+        "title": "Tea #1",
+        "required": true,
+        "options": [
+          "Sun Moon Lake Tea",
+          "White Peach Oolong Tea"
+        ]
+      }
+    ]
   },
   {
     "title": "Shrimp Fries | Prawn Crackers",

@@ -15,7 +15,12 @@ export function Footer() {
           <p className="kicker mb-3">Visit</p>
           <p>1005 Aljunied Ave 5 #01-42</p>
           <p>Singapore 389886</p>
-          <p>No walk-in. WhatsApp +65 9638 1788</p>
+          <p>
+            No walk-in.{" "}
+            <a href="https://wa.me/6596381788" className="border-b border-gold hover:text-cinnabar">
+              WhatsApp +65 9638 1788
+            </a>
+          </p>
         </div>
         <div className="space-y-2">
           <p className="kicker mb-3">House notes</p>

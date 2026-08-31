@@ -12,6 +12,7 @@ export function CheckoutForm({
 }) {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [kind, setKind] = useState<"delivery" | "collect">("delivery");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -59,15 +60,34 @@ export function CheckoutForm({
       <fieldset className="text-sm space-y-2">
         <legend className="mb-2">How to receive</legend>
         <label className="flex gap-2">
-          <input type="radio" name="delivery_kind" value="delivery" defaultChecked /> Delivery (islandwide, except Sentosa & Changi Airport)
+          <input
+            type="radio"
+            name="delivery_kind"
+            value="delivery"
+            checked={kind === "delivery"}
+            onChange={() => setKind("delivery")}
+          />{" "}
+          Delivery (islandwide, except Sentosa & Changi Airport)
         </label>
         <label className="flex gap-2">
-          <input type="radio" name="delivery_kind" value="collect" /> Collect at Aljunied kitchen
+          <input
+            type="radio"
+            name="delivery_kind"
+            value="collect"
+            checked={kind === "collect"}
+            onChange={() => setKind("collect")}
+          />{" "}
+          Collect at Aljunied kitchen
         </label>
       </fieldset>
       <label className="block text-sm">
         Address
-        <textarea name="address" rows={3} className="mt-1 w-full border border-sand bg-parchment px-3 py-2" />
+        <textarea
+          name="address"
+          rows={3}
+          required={kind === "delivery"}
+          className="mt-1 w-full border border-sand bg-parchment px-3 py-2"
+        />
       </label>
       <label className="flex gap-2 text-sm">
         <input type="checkbox" name="express_slot" /> 3-hour delivery slot (+S$40)

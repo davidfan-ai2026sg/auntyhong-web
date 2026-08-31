@@ -6,7 +6,7 @@ export const metadata = { title: "Kitchen desk" };
 
 export default async function AdminHome() {
   if (!(await isAdmin())) redirect("/admin/login");
-  const orders = listOrders();
+  const orders = await listOrders();
   const enquiries = listEnquiries();
   return (
     <div>

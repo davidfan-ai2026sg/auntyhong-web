@@ -6,7 +6,7 @@ export const metadata = { title: "Order" };
 
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const order = getOrder(Number(id));
+  const order = await getOrder(Number(id));
   if (!order) notFound();
   return (
     <div className="mx-auto max-w-2xl px-5 py-14">
@@ -26,7 +26,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         ))}
       </ul>
       <p className="mt-6 text-sm text-cocoa/60">
-        Kitchen: 1005 Aljunied Ave 5 #01-42. WhatsApp +65 9638 1788.
+        Kitchen: 1005 Aljunied Ave 5 #01-42.{" "}
+        <a href="https://wa.me/6596381788" className="border-b border-gold">
+          WhatsApp +65 9638 1788
+        </a>
+        .
       </p>
     </div>
   );

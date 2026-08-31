@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { readCart, writeCart } from "@/lib/cart";
-import { createOrder } from "@/lib/db";
+import { CART_COOKIE, CART_COOKIE_OPTS, readCart, writeCart } from "@/lib/cart";
+import { createOrder, ORDER_COOKIE, ORDER_COOKIE_OPTS, persistOrder } from "@/lib/db";
 import type { DeliveryKind } from "@/lib/pricing";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const lines = await readCart();
-    const order = createOrder({
+    const order = await createOrder({
       customer_name: String(body.customer_name || ""),
       customer_phone: String(body.customer_phone || ""),
       customer_email: String(body.customer_email || ""),
@@ -18,9 +18,13 @@ export async function POST(req: Request) {
       express_slot: Boolean(body.express_slot),
       lines,
     });
+    const stored = await persistOrder(order);
     await writeCart([]);
     revalidatePath("/", "layout");
-    return NextResponse.json({ id: order.id, ref: order.paynow_ref });
+    const res = NextResponse.json({ id: order.id, ref: order.paynow_ref });
+    res.cookies.set(CART_COOKIE, "[]", CART_COOKIE_OPTS);
+    res.cookies.set(ORDER_COOKIE, JSON.stringify(stored), ORDER_COOKIE_OPTS);
+    return res;
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Checkout failed" },

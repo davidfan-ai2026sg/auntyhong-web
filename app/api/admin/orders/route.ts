@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { setOrderStatus } from "@/lib/db";
+import { ORDER_COOKIE, ORDER_COOKIE_OPTS, persistOrder, setOrderStatus } from "@/lib/db";
 import { ALLOWED_STATUSES, type OrderStatus } from "@/lib/pricing";
 
 export async function POST(req: Request) {
@@ -10,7 +10,10 @@ export async function POST(req: Request) {
   if (!ALLOWED_STATUSES.includes(status)) {
     return NextResponse.json({ error: "Bad status" }, { status: 400 });
   }
-  const order = setOrderStatus(Number(body.id), status);
+  const order = await setOrderStatus(Number(body.id), status);
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ ok: true, status: order.status });
+  const stored = await persistOrder(order);
+  const res = NextResponse.json({ ok: true, status: order.status });
+  res.cookies.set(ORDER_COOKIE, JSON.stringify(stored), ORDER_COOKIE_OPTS);
+  return res;
 }

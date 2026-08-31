@@ -8,7 +8,7 @@ export const metadata = { title: "Orders" };
 
 export default async function AdminOrders() {
   if (!(await isAdmin())) redirect("/admin/login");
-  const orders = listOrders();
+  const orders = await listOrders();
   return (
     <div>
       <h1 className="display text-4xl">Orders</h1>

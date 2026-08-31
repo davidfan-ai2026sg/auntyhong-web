@@ -8,7 +8,7 @@ export const metadata = { title: "Pay" };
 
 export default async function PayPage({ params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = await params;
-  const order = getOrder(Number(orderId));
+  const order = await getOrder(Number(orderId));
   if (!order) notFound();
   const qr = await QRCode.toDataURL(order.paynow_ref, { margin: 1, width: 280 });
   return (

@@ -46,7 +46,27 @@ async function main() {
   const quoted = quoteCart([{ sku: "SQ0179319", qty: 3 }], "delivery", false);
   assert.equal(quoted.totals.total, 81);
 
-  const order = createOrder({
+  const duo = quoteCart(
+    [
+      {
+        sku: "SQ9265799",
+        qty: 1,
+        options: {
+          "Cookie Tin #1": "Melty Kuih Bangkit",
+          "Cookie Tin #2": "Malty Cashew Bars",
+        },
+      },
+    ],
+    "delivery",
+    false
+  );
+  assert.equal(duo.totals.subtotal, 66);
+  assert.equal(duo.totals.delivery, 15);
+  assert.equal(duo.totals.total, 81);
+  assert.match(duo.items[0].variant_label, /Melty Kuih Bangkit/);
+  assert.match(duo.items[0].variant_label, /Malty Cashew Bars/);
+
+  const order = await createOrder({
     customer_name: "Test Guest",
     customer_phone: "+65 9000 0000",
     customer_email: "demo@example.com",
@@ -60,11 +80,11 @@ async function main() {
   assert.equal(order.total, 81);
   assert.match(order.paynow_ref, /^AH-\d{8}-\d{3}$/);
 
-  const submitted = setOrderStatus(order.id, "payment_submitted", "paynow");
+  const submitted = await setOrderStatus(order.id, "payment_submitted", "paynow");
   assert.equal(submitted?.status, "payment_submitted");
-  const paid = setOrderStatus(order.id, "paid");
+  const paid = await setOrderStatus(order.id, "paid");
   assert.equal(paid?.status, "paid");
-  assert.equal(getOrder(order.id)?.payment_method, "paynow");
+  assert.equal((await getOrder(order.id))?.payment_method, "paynow");
 
   process.env.ADMIN_PASSWORD = "test-kitchen";
   assert.equal(adminPassword(), "test-kitchen");

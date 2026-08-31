@@ -4,6 +4,7 @@ import { quoteCart } from "@/lib/db";
 import { formatSgd } from "@/lib/pricing";
 import { CartEditor } from "@/components/CartEditor";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Basket" };
 
 export default async function CartPage() {

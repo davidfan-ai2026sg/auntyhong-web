@@ -7,6 +7,15 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "images.squarespace-cdn.com" },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/store/p/:slug",
+        destination: "/product/:slug",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
