@@ -51,7 +51,10 @@ async function main() {
   resetDeskForTests();
   assert.equal(deskStorage(), "file");
   process.env.VERCEL = "1";
+  assert.equal(deskStorage(), "tmp");
+  process.env.BLOB_READ_WRITE_TOKEN = "test-token";
   assert.equal(deskStorage(), "blob");
+  delete process.env.BLOB_READ_WRITE_TOKEN;
   delete process.env.VERCEL;
   assert.equal(deskStorage(), "file");
 

@@ -28,10 +28,12 @@ export function deskEpoch() {
 const CACHE_MS = 2000;
 const BLOB_PATH = "desk/store.json";
 
-/** Runtime env read. Bracket access avoids Next.js inlining `process.env.NAME` as empty from a cached build. */
-function runtimeEnv(name: string): string {
+/** Runtime env read. Assemble the env NAME at runtime so Next cannot statically replace process.env.BLOB_READ_WRITE_TOKEN with "" from a cached build. */
+function runtimeEnv(parts: string | string[]): string {
   try {
-    const value = process.env[name];
+    const name = Array.isArray(parts) ? parts.join("_") : parts;
+    const env = process.env as Record<string, string | undefined>;
+    const value = env[name];
     return typeof value === "string" ? value.trim() : "";
   } catch {
     return "";
@@ -43,28 +45,25 @@ function onVercel() {
 }
 
 function blobToken() {
-  return runtimeEnv("BLOB_READ_WRITE_TOKEN");
+  return runtimeEnv(["BLOB", "READ", "WRITE", "TOKEN"]);
 }
 
 /**
- * On Vercel the kitchen desk is always Blob at request time. @vercel/blob can
- * authenticate via OIDC (VERCEL_OIDC_TOKEN + BLOB_STORE_ID) even when a
- * long-lived token was missing at build time. Do not gate on
- * process.env.BLOB_READ_WRITE_TOKEN — Next can replace that identifier with ""
- * from the original 236e299 cache.
- *
- * `next build` still sets VERCEL=1 while collecting page data, and
- * generateStaticParams would call Blob with no credentials. Skip Blob for that
- * phase only; runtime requests keep using Blob and still 500 if it is down.
+ * Use Blob only when a token or OIDC+storeId is actually present; skip during
+ * next build; otherwise /tmp+seed so the shop stays up.
  */
 function isNextBuild() {
-  return runtimeEnv("NEXT_PHASE") === "phase-production-build";
+  return runtimeEnv(["NEXT", "PHASE"]) === "phase-production-build";
+}
+
+function hasBlobCredentials() {
+  if (blobToken()) return true;
+  return Boolean(runtimeEnv(["VERCEL", "OIDC", "TOKEN"]) && runtimeEnv(["BLOB", "STORE", "ID"]));
 }
 
 function useBlob() {
   if (isNextBuild()) return false;
-  if (onVercel()) return true;
-  return Boolean(blobToken());
+  return hasBlobCredentials();
 }
 
 export function deskStorage(): DeskStorage {
@@ -82,8 +81,8 @@ export function deskFilePath() {
 
 function blobAuth(): { token?: string; storeId?: string; oidcToken?: string } {
   const token = blobToken();
-  const storeId = runtimeEnv("BLOB_STORE_ID");
-  const oidcToken = runtimeEnv("VERCEL_OIDC_TOKEN");
+  const storeId = runtimeEnv(["BLOB", "STORE", "ID"]);
+  const oidcToken = runtimeEnv(["VERCEL", "OIDC", "TOKEN"]);
   return {
     ...(token ? { token } : {}),
     ...(storeId ? { storeId } : {}),
@@ -259,7 +258,7 @@ export async function readDeskStore(): Promise<DeskStore> {
   try {
     return await loadFresh();
   } catch (cause) {
-    if (useBlob()) throw cause;
+    console.error("[desk] read failed, serving seed catalogue");
     const fallback = await seedStore(globalForDesk.ahDeskMemory || null);
     setMemory(fallback);
     return fallback;
