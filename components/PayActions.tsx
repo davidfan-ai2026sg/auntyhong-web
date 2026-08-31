@@ -10,9 +10,9 @@ export function PayActions({ orderId, status }: { orderId: number; status: strin
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderId, kind }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(data.error || "Failed");
+      setMsg((data as { error?: string }).error || "Failed");
       return;
     }
     window.location.href = `/order/${orderId}`;

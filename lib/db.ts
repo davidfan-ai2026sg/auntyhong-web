@@ -277,12 +277,25 @@ function isOrderWithItems(value: unknown): value is OrderWithItems {
   return typeof o.id === "number" && typeof o.order_no === "string" && Array.isArray(o.items);
 }
 
+function parseCookieJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    /* cookie may arrive still percent-encoded */
+  }
+  try {
+    return JSON.parse(decodeURIComponent(raw));
+  } catch {
+    return null;
+  }
+}
+
 export async function readStoredOrders(): Promise<OrderWithItems[]> {
   try {
     const jar = await cookies();
     const raw = jar.get(ORDER_COOKIE)?.value;
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = parseCookieJson(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(isOrderWithItems);
   } catch {

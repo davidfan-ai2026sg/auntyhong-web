@@ -13,7 +13,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       <p className="kicker">Thank you</p>
       <h1 className="display mt-2 text-5xl">{order.order_no}</h1>
       <p className="mt-3 text-cocoa/70">
-        {order.status.replaceAll("_", " ")} · {formatSgd(order.total)} · {order.paynow_ref}
+        {String(order.status || "").replaceAll("_", " ")} · {formatSgd(order.total)} · {order.paynow_ref}
       </p>
       <ul className="mt-8 divide-y divide-sand">
         {order.items.map((it) => (

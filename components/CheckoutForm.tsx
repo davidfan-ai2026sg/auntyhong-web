@@ -32,13 +32,17 @@ export function CheckoutForm({
         express_slot: fd.get("express_slot") === "on",
       }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) {
-      setErr(data.error || "Could not place order");
+      setErr((data as { error?: string }).error || "Could not place order");
       return;
     }
-    window.location.href = `/pay/${data.id}`;
+    if (!(data as { id?: number }).id) {
+      setErr("Could not place order");
+      return;
+    }
+    window.location.href = `/pay/${(data as { id: number }).id}`;
   }
 
   return (

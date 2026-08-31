@@ -5,7 +5,8 @@ export function roundMoney(n: number) {
 }
 
 export function formatSgd(n: number) {
-  return `S$${n.toFixed(2)}`;
+  const v = Number(n);
+  return `S$${(Number.isFinite(v) ? v : 0).toFixed(2)}`;
 }
 
 export function computeTotals(input: {

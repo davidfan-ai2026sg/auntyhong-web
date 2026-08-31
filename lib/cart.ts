@@ -13,8 +13,14 @@ export async function readCart(): Promise<CartLine[]> {
   const raw = jar.get(CART_COOKIE)?.value;
   if (!raw) return [];
   try {
-    const parsed = JSON.parse(raw) as CartLine[];
-    return parsed.filter((l) => l && typeof l.sku === "string" && l.qty > 0);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = JSON.parse(decodeURIComponent(raw));
+    }
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as CartLine[]).filter((l) => l && typeof l.sku === "string" && l.qty > 0);
   } catch {
     return [];
   }
