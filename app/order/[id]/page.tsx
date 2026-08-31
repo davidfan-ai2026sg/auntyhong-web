@@ -1,0 +1,33 @@
+import { notFound } from "next/navigation";
+import { getOrder } from "@/lib/db";
+import { formatSgd } from "@/lib/pricing";
+
+export const metadata = { title: "Order" };
+
+export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const order = getOrder(Number(id));
+  if (!order) notFound();
+  return (
+    <div className="mx-auto max-w-2xl px-5 py-14">
+      <p className="kicker">Thank you</p>
+      <h1 className="display mt-2 text-5xl">{order.order_no}</h1>
+      <p className="mt-3 text-cocoa/70">
+        {order.status.replaceAll("_", " ")} · {formatSgd(order.total)} · {order.paynow_ref}
+      </p>
+      <ul className="mt-8 divide-y divide-sand">
+        {order.items.map((it) => (
+          <li key={it.id} className="py-3 flex justify-between text-sm">
+            <span>
+              {it.product_title} · {it.variant_label} × {it.qty}
+            </span>
+            <span>{formatSgd(it.unit_price * it.qty)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-6 text-sm text-cocoa/60">
+        Kitchen: 1005 Aljunied Ave 5 #01-42. WhatsApp +65 9638 1788.
+      </p>
+    </div>
+  );
+}
