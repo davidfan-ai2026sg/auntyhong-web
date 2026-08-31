@@ -100,15 +100,25 @@ function seed(db: BetterSqlite3.Database) {
   }
 }
 
+function ordersUseSqlite() {
+  // Vercel /tmp sqlite is per-instance and collides across shoppers. Customer
+  // orders live in the ah_orders cookie there; sqlite is for local/admin only.
+  return !process.env.VERCEL;
+}
+
 export function getDb() {
   if (globalForDb.ahWebDb) return globalForDb.ahWebDb;
-  const file = dbPath();
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const db = openSqlite(file);
-  migrate(db);
-  seed(db);
-  globalForDb.ahWebDb = db;
-  return db;
+  try {
+    const file = dbPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const db = openSqlite(file);
+    migrate(db);
+    seed(db);
+    globalForDb.ahWebDb = db;
+    return db;
+  } catch (e) {
+    throw e;
+  }
 }
 
 export function resetDbForTests() {
@@ -149,6 +159,7 @@ export function defaultSettings(): Settings {
 }
 
 export function getSettings(): Settings {
+  if (!ordersUseSqlite()) return defaultSettings();
   try {
     const row = getDb().prepare("SELECT * FROM settings WHERE id = 1").get() as Settings | undefined;
     if (row) return row;
@@ -328,17 +339,33 @@ function getOrderFromSqlite(id: number): OrderWithItems | undefined {
 }
 
 export async function getOrder(id: number): Promise<OrderWithItems | undefined> {
-  try {
-    const hit = getOrderFromSqlite(id);
-    if (hit) return hit;
-  } catch {
-    /* sqlite miss or unavailable */
-  }
   const cookieOrders = await readStoredOrders();
-  return cookieOrders.find((o) => o.id === id);
+  const fromCookie = cookieOrders.find((o) => o.id === id);
+  if (fromCookie) return fromCookie;
+  if (!ordersUseSqlite()) return undefined;
+  try {
+    return getOrderFromSqlite(id);
+  } catch {
+    return undefined;
+  }
+}
+
+export async function findCustomerOrder(key: string): Promise<OrderWithItems | undefined> {
+  const trimmed = String(key || "").trim();
+  if (!trimmed) return undefined;
+  const asNum = Number(trimmed);
+  if (Number.isFinite(asNum) && asNum > 0) {
+    const byId = await getOrder(asNum);
+    if (byId) return byId;
+  }
+  return getOrderByRef(trimmed);
 }
 
 export async function getOrderByRef(ref: string): Promise<OrderWithItems | undefined> {
+  const cookieOrders = await readStoredOrders();
+  const fromCookie = cookieOrders.find((o) => o.paynow_ref === ref || o.order_no === ref);
+  if (fromCookie) return fromCookie;
+  if (!ordersUseSqlite()) return undefined;
   try {
     const order = getDb()
       .prepare("SELECT * FROM orders WHERE paynow_ref = ? OR order_no = ?")
@@ -347,8 +374,7 @@ export async function getOrderByRef(ref: string): Promise<OrderWithItems | undef
   } catch {
     /* sqlite miss or unavailable */
   }
-  const cookieOrders = await readStoredOrders();
-  return cookieOrders.find((o) => o.paynow_ref === ref || o.order_no === ref);
+  return undefined;
 }
 
 export async function listOrders(): Promise<OrderWithItems[]> {
@@ -362,14 +388,16 @@ export async function listOrders(): Promise<OrderWithItems[]> {
     seen.add(`no:${o.order_no}`);
     out.push(o);
   };
-  try {
-    const rows = getDb().prepare("SELECT * FROM orders ORDER BY id DESC").all() as OrderRow[];
-    for (const r of rows) {
-      const o = getOrderFromSqlite(r.id);
-      if (o) remember(o);
+  if (ordersUseSqlite()) {
+    try {
+      const rows = getDb().prepare("SELECT * FROM orders ORDER BY id DESC").all() as OrderRow[];
+      for (const r of rows) {
+        const o = getOrderFromSqlite(r.id);
+        if (o) remember(o);
+      }
+    } catch {
+      /* sqlite unavailable */
     }
-  } catch {
-    /* sqlite unavailable */
   }
   for (const o of await readStoredOrders()) remember(o);
   out.sort((a, b) => b.id - a.id);
@@ -389,6 +417,8 @@ export async function createOrder(input: {
   const { items, totals } = quoteCart(input.lines, input.delivery_kind, input.express_slot);
   if (!items.length) throw new Error("Cart is empty");
   if (totals.belowMinimum) throw new Error(`Minimum order is S$${totals.minOrder.toFixed(2)}`);
+  if (!input.customer_name.trim()) throw new Error("Name is required");
+  if (!input.customer_phone.trim()) throw new Error("Phone is required");
   if (input.delivery_kind === "delivery" && !input.address.trim()) {
     throw new Error("Delivery address is required");
   }
@@ -433,6 +463,7 @@ export async function createOrder(input: {
 
   let order: OrderWithItems | undefined;
   try {
+    if (!ordersUseSqlite()) throw new Error("skip sqlite");
     const db = getDb();
     const tx = db.transaction(() => {
       const seq = (db.prepare("SELECT COUNT(*) AS c FROM orders").get() as { c: number }).c + 1;
@@ -470,7 +501,7 @@ export async function createOrder(input: {
     order = getOrderFromSqlite(id) ?? assemble(id, "", "");
   } catch {
     const existing = await readStoredOrders();
-    const id = Math.max(9000, ...existing.map((o) => o.id)) + 1;
+    const id = Math.max(0, ...existing.map((o) => o.id)) + 1;
     const seq = existing.length + 1;
     const paynow = nextPayNowRef(seq);
     const orderNo = paynow.replace("AH-", "AH");
@@ -481,26 +512,19 @@ export async function createOrder(input: {
 }
 
 export async function setOrderStatus(id: number, status: OrderStatus, paymentMethod?: string) {
-  try {
-    const cur = getOrderFromSqlite(id);
-    if (cur) {
-      getDb()
-        .prepare("UPDATE orders SET status = ?, payment_method = COALESCE(?, payment_method), updated_at = ? WHERE id = ?")
-        .run(status, paymentMethod ?? cur.payment_method, nowIso(), id);
+  if (ordersUseSqlite()) {
+    try {
+      const cur = getOrderFromSqlite(id);
+      if (cur) {
+        getDb()
+          .prepare("UPDATE orders SET status = ?, payment_method = COALESCE(?, payment_method), updated_at = ? WHERE id = ?")
+          .run(status, paymentMethod ?? cur.payment_method, nowIso(), id);
+      }
+    } catch {
+      /* sqlite unavailable */
     }
-  } catch {
-    /* sqlite unavailable */
   }
-  let order: OrderWithItems | undefined;
-  try {
-    order = getOrderFromSqlite(id);
-  } catch {
-    order = undefined;
-  }
-  if (!order) {
-    const cookieOrders = await readStoredOrders();
-    order = cookieOrders.find((o) => o.id === id);
-  }
+  let order: OrderWithItems | undefined = await getOrder(id);
   if (!order) return undefined;
   const next: OrderWithItems = {
     ...order,

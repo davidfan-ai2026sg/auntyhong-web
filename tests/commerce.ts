@@ -41,7 +41,7 @@ async function main() {
   const ref = nextPayNowRef(1, new Date("2026-08-31T12:00:00+08:00"));
   assert.match(ref, /^AH-20260831-001$/);
 
-  const { resetDbForTests, createOrder, getOrder, setOrderStatus, quoteCart } = await import("../lib/db");
+  const { resetDbForTests, createOrder, findCustomerOrder, getOrder, setOrderStatus, quoteCart } = await import("../lib/db");
   resetDbForTests();
   const quoted = quoteCart([{ sku: "SQ0179319", qty: 3 }], "delivery", false);
   assert.equal(quoted.totals.total, 81);
@@ -79,6 +79,49 @@ async function main() {
   assert.equal(order.status, "pending_payment");
   assert.equal(order.total, 81);
   assert.match(order.paynow_ref, /^AH-\d{8}-\d{3}$/);
+
+  await assert.rejects(
+    () =>
+      createOrder({
+        customer_name: "Test Guest",
+        customer_phone: "+65 9000 0000",
+        customer_email: "",
+        delivery_kind: "delivery",
+        address: "",
+        notes: "",
+        express_slot: false,
+        lines: [{ sku: "SQ0179319", qty: 3 }],
+      }),
+    /Delivery address is required/
+  );
+
+  const pickup = await createOrder({
+    customer_name: "Pickup Guest",
+    customer_phone: "+65 9000 0001",
+    customer_email: "",
+    delivery_kind: "collect",
+    address: "",
+    notes: "",
+    express_slot: false,
+    lines: [
+      {
+        sku: "SQ9265799",
+        qty: 1,
+        options: {
+          "Cookie Tin #1": "Melty Kuih Bangkit",
+          "Cookie Tin #2": "Malty Cashew Bars",
+        },
+      },
+    ],
+  });
+  assert.equal(pickup.delivery_kind, "collect");
+  assert.equal(pickup.address, "");
+  assert.equal(pickup.delivery_fee, 0);
+  assert.equal(pickup.total, 66);
+  assert.equal(pickup.status, "pending_payment");
+
+  const found = await findCustomerOrder(String(pickup.id));
+  assert.equal(found?.order_no, pickup.order_no);
 
   const submitted = await setOrderStatus(order.id, "payment_submitted", "paynow");
   assert.equal(submitted?.status, "payment_submitted");

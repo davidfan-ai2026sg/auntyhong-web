@@ -1,27 +1,30 @@
 import { notFound } from "next/navigation";
-import { getOrder } from "@/lib/db";
+import { findCustomerOrder } from "@/lib/db";
 import { formatSgd } from "@/lib/pricing";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Order" };
 
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const order = await getOrder(Number(id));
+  const order = await findCustomerOrder(id);
   if (!order) notFound();
+  const items = Array.isArray(order.items) ? order.items : [];
   return (
     <div className="mx-auto max-w-2xl px-5 py-14">
       <p className="kicker">Thank you</p>
       <h1 className="display mt-2 text-5xl">{order.order_no}</h1>
       <p className="mt-3 text-cocoa/70">
-        {String(order.status || "").replaceAll("_", " ")} · {formatSgd(order.total)} · {order.paynow_ref}
+        {String(order.status || "").replaceAll("_", " ")} · {formatSgd(Number(order.total))} · {order.paynow_ref}
       </p>
       <ul className="mt-8 divide-y divide-sand">
-        {order.items.map((it) => (
+        {items.map((it) => (
           <li key={it.id} className="py-3 flex justify-between text-sm">
             <span>
               {it.product_title} · {it.variant_label} × {it.qty}
             </span>
-            <span>{formatSgd(it.unit_price * it.qty)}</span>
+            <span>{formatSgd(Number(it.unit_price) * Number(it.qty))}</span>
           </li>
         ))}
       </ul>

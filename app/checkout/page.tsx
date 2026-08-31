@@ -4,6 +4,7 @@ import { CheckoutForm } from "@/components/CheckoutForm";
 import { formatSgd } from "@/lib/pricing";
 import Link from "next/link";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Checkout" };
 
