@@ -24,7 +24,7 @@ export default async function AdminHome() {
         <div className="border border-sand p-5">
           <p className="kicker">Awaiting kitchen</p>
           <p className="display text-4xl mt-2">
-            {orders.filter((o) => ["payment_submitted", "paid", "packing"].includes(o.status)).length}
+            {orders.filter((o) => ["payment_submitted", "paid", "in_production", "ready", "packing"].includes(o.status)).length}
           </p>
         </div>
         <div className="border border-sand p-5">

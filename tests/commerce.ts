@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { computeTotals, nextPayNowRef } from "../lib/pricing";
+import { computeTotals, nextPayNowRef, isPaidLike, PRODUCTION_STATUSES } from "../lib/pricing";
 import { adminPassword, sessionToken } from "../lib/auth";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ah-web-"));
@@ -12,6 +12,8 @@ process.env.ADMIN_PASSWORD = "test-kitchen";
 process.env.DEMO_PAYMENTS = "1";
 delete process.env.VERCEL;
 delete process.env.BLOB_READ_WRITE_TOKEN;
+delete process.env.STRIPE_SECRET_KEY;
+delete process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
 async function main() {
   const threeTins = computeTotals({
@@ -44,9 +46,41 @@ async function main() {
   const ref = nextPayNowRef(1, new Date("2026-08-31T12:00:00+08:00"));
   assert.match(ref, /^AH-20260831-001$/);
 
-  const { resetDbForTests, createOrder, findCustomerOrder, getOrder, setOrderStatus, quoteCart, createEnquiry, listEnquiries, getSettings, updateSettings } = await import("../lib/db");
-  const { resetDeskForTests, deskStorage } = await import("../lib/desk-store");
-  const { listProducts, findVariant, upsertProduct, updateProduct, deleteProduct, setProductStock } = await import("../lib/catalog");
+  assert.ok(PRODUCTION_STATUSES.includes("in_production"));
+  assert.ok(isPaidLike("payment_submitted"));
+  assert.ok(isPaidLike("paid"));
+  assert.equal(isPaidLike("pending_payment"), false);
+
+  const {
+    resetDbForTests,
+    createOrder,
+    findCustomerOrder,
+    getOrder,
+    setOrderStatus,
+    quoteCart,
+    createEnquiry,
+    listEnquiries,
+    getSettings,
+    updateSettings,
+    listOrders,
+    productionRollup,
+    invoiceNumberFor,
+    markOrderPaid,
+  } = await import("../lib/db");
+  const { resetDeskForTests, deskStorage, readDeskStore } = await import("../lib/desk-store");
+  const {
+    listProducts,
+    getProduct,
+    findVariant,
+    upsertProduct,
+    updateProduct,
+    deleteProduct,
+    setProductStock,
+    clearAllProducts,
+    seedProducts,
+  } = await import("../lib/catalog");
+  const { stripeConfigured, stripeClientFacing } = await import("../lib/stripe");
+
   resetDbForTests();
   resetDeskForTests();
   assert.equal(deskStorage(), "file");
@@ -57,6 +91,9 @@ async function main() {
   delete process.env.BLOB_READ_WRITE_TOKEN;
   delete process.env.VERCEL;
   assert.equal(deskStorage(), "file");
+
+  assert.equal(stripeConfigured(), false);
+  assert.equal(stripeClientFacing(), false);
 
   const quoted = await quoteCart([{ sku: "SQ0179319", qty: 3 }], "delivery", false);
   assert.equal(quoted.totals.total, 81);
@@ -118,6 +155,7 @@ async function main() {
     address: "",
     notes: "",
     express_slot: false,
+    requested_date: "2026-09-10",
     lines: [
       {
         sku: "SQ9265799",
@@ -134,15 +172,22 @@ async function main() {
   assert.equal(pickup.delivery_fee, 0);
   assert.equal(pickup.total, 66);
   assert.equal(pickup.status, "pending_payment");
+  assert.equal(pickup.requested_date, "2026-09-10");
 
   const found = await findCustomerOrder(String(pickup.id));
   assert.equal(found?.order_no, pickup.order_no);
 
   const submitted = await setOrderStatus(order.id, "payment_submitted", "paynow");
   assert.equal(submitted?.status, "payment_submitted");
+  assert.equal(submitted?.stock_decremented, true);
   const paid = await setOrderStatus(order.id, "paid");
   assert.equal(paid?.status, "paid");
+  assert.equal(paid?.stock_decremented, true);
   assert.equal((await getOrder(order.id))?.payment_method, "paynow");
+
+  // Desk should hold paid-like orders
+  const desk = await readDeskStore();
+  assert.ok(desk.orders.some((o) => o.id === order.id));
 
   process.env.ADMIN_PASSWORD = "test-kitchen";
   assert.equal(adminPassword(), "test-kitchen");
@@ -188,6 +233,40 @@ async function main() {
   assert.equal(luckyStillThere.product.slug, "lucky-duo-cookies-giftset");
   assert.equal(luckyStillThere.product.additionalFields.length, 2);
 
+  // Option edit persistence — rename flavor + round-trip
+  const lucky = luckyStillThere.product;
+  const tin1 = lucky.additionalFields[0];
+  const tin2 = lucky.additionalFields[1];
+  assert.equal(tin1.title, "Cookie Tin #1");
+  assert.equal(tin2.title, "Cookie Tin #2");
+  const flavors = [...tin1.options];
+  assert.ok(flavors.includes("Melty Kuih Bangkit"));
+  const withQa = await updateProduct(lucky.slug, {
+    title: lucky.title,
+    additionalFields: [
+      { ...tin1, options: [...tin1.options, "QA Overnight Flavor"] },
+      tin2,
+    ],
+  });
+  assert.ok(withQa.additionalFields[0].options.includes("QA Overnight Flavor"));
+  const again = await getProduct(lucky.slug);
+  assert.ok(again);
+  assert.equal(again.additionalFields.length, 2);
+  assert.equal(again.additionalFields[0].title, "Cookie Tin #1");
+  assert.ok(again.additionalFields[0].options.includes("QA Overnight Flavor"));
+  // Flat field update must not strip options
+  const pricedLucky = await updateProduct(lucky.slug, { title: lucky.title, price: 66 });
+  assert.equal(pricedLucky.additionalFields.length, 2);
+  assert.ok(pricedLucky.additionalFields[0].options.includes("QA Overnight Flavor"));
+  // Revert QA flavor
+  await updateProduct(lucky.slug, {
+    title: lucky.title,
+    additionalFields: [
+      { title: "Cookie Tin #1", required: true, options: flavors },
+      { title: "Cookie Tin #2", required: true, options: [...tin2.options] },
+    ],
+  });
+
   const priced = await updateProduct(created.slug, { price: 18, stock: 0, soldOut: true });
   assert.equal(priced.fromPrice, 18);
   const pricedHit = await findVariant("AH-TEST-TIN");
@@ -206,8 +285,144 @@ async function main() {
   assert.equal(await findVariant("AH-TEST-TIN"), undefined);
   assert.ok(await findVariant("SQ9265799"));
 
-  const settings = await updateSettings({ min_order: 90 });
+  // --- Empty-catalog round trip ---
+  const cleared = await clearAllProducts();
+  assert.ok(cleared > 0);
+  assert.equal((await listProducts()).length, 0);
+  assert.equal(await getProduct("lucky-duo-cookies-giftset"), undefined);
+  // Storefront helpers must not throw on empty catalogue
+  assert.equal((await listProducts()).length, 0);
+
+  const tinFlavors = [
+    "Almond Butter Cookies",
+    "Melty Kuih Bangkit",
+    "Malty Cashew Bars",
+    "Emping Belinjau Cookies",
+    "Premium Prawn Rolls",
+    "Spicy Floss Samosas",
+    "Golden Peanut Puffs",
+    "Cashew Butter Cookies",
+  ];
+  const rebuilt = await upsertProduct({
+    title: "Lucky Duo 成雙成對",
+    slug: "lucky-duo-cookies-giftset",
+    sku: "SQ9265799",
+    price: 66,
+    stock: 12,
+    unlimited: false,
+    description: "Two cookie tins, kitchen-rebuilt",
+    categories: ["Shop", "Gift Sets"],
+    additionalFields: [
+      { title: "Cookie Tin #1", required: true, options: tinFlavors },
+      { title: "Cookie Tin #2", required: true, options: tinFlavors },
+    ],
+  });
+  assert.equal(rebuilt.slug, "lucky-duo-cookies-giftset");
+  assert.equal(rebuilt.additionalFields.length, 2);
+  assert.equal(rebuilt.additionalFields[0].title, "Cookie Tin #1");
+  assert.deepEqual(rebuilt.additionalFields[0].options, tinFlavors);
+  const rebuiltGet = await getProduct("lucky-duo-cookies-giftset");
+  assert.ok(rebuiltGet);
+  assert.equal(rebuiltGet.additionalFields[1].title, "Cookie Tin #2");
+  assert.ok((await listProducts()).some((p) => p.slug === "lucky-duo-cookies-giftset"));
+
+  // Restore full seed catalogue for remaining tests / cleanliness
+  resetDeskForTests();
+  resetDbForTests();
+  const seeded = await listProducts();
+  assert.ok(seeded.length >= seedProducts().length - 1);
+  assert.ok(await getProduct("lucky-duo-cookies-giftset"));
+
+  // --- Stock decrement once on pay ---
+  const stockProduct = await upsertProduct({
+    title: "Stock Test Tin",
+    sku: "AH-STOCK-1",
+    price: 50,
+    stock: 5,
+    unlimited: false,
+    categories: ["Shop"],
+  });
+  const stockOrder = await createOrder({
+    customer_name: "Stock Guest",
+    customer_phone: "+65 9111 1111",
+    customer_email: "stock@example.com",
+    delivery_kind: "collect",
+    address: "",
+    notes: "",
+    express_slot: false,
+    lines: [{ sku: "AH-STOCK-1", qty: 2 }],
+  });
+  assert.equal(stockOrder.status, "pending_payment");
+  const afterPay = await setOrderStatus(stockOrder.id, "payment_submitted", "paynow");
+  assert.equal(afterPay?.stock_decremented, true);
+  const afterStock = await findVariant("AH-STOCK-1");
+  assert.equal(afterStock?.variant.stock, 3);
+  // Repeat pay-like transition must not decrement again
+  await setOrderStatus(stockOrder.id, "paid");
+  assert.equal((await findVariant("AH-STOCK-1"))?.variant.stock, 3);
+  await markOrderPaid(stockOrder.id, "stripe");
+  assert.equal((await findVariant("AH-STOCK-1"))?.variant.stock, 3);
+
+  // Sell down to zero → sold out
+  const zeroOrder = await createOrder({
+    customer_name: "Zero Guest",
+    customer_phone: "+65 9222 2222",
+    customer_email: "",
+    delivery_kind: "collect",
+    address: "",
+    notes: "",
+    express_slot: false,
+    lines: [{ sku: "AH-STOCK-1", qty: 3 }],
+  });
+  await setOrderStatus(zeroOrder.id, "paid", "paynow");
+  const zeroHit = await findVariant("AH-STOCK-1");
+  assert.equal(zeroHit?.variant.stock, 0);
+  assert.equal(zeroHit?.variant.inStock, false);
+  assert.equal(zeroHit?.product.soldOut, true);
+
+  // Production rollup + invoice fields
+  const kitchenOrders = (await listOrders()).filter((o) => isPaidLike(o.status));
+  assert.ok(kitchenOrders.length >= 1);
+  const rollup = productionRollup(kitchenOrders);
+  assert.ok(rollup.some((r) => r.qty > 0));
+  const invOrder = kitchenOrders.find((o) => o.id === stockOrder.id) || kitchenOrders[0];
+  assert.match(invoiceNumberFor(invOrder), /^INV-/);
+
+  // Order happy path: Lucky Duo pickup + pay → production variants
+  const duoOrder = await createOrder({
+    customer_name: "Duo Guest",
+    customer_phone: "+65 9333 3333",
+    customer_email: "duo@example.com",
+    delivery_kind: "collect",
+    address: "",
+    notes: "",
+    express_slot: false,
+    requested_date: "2026-09-12",
+    lines: [
+      {
+        sku: "SQ9265799",
+        qty: 1,
+        options: {
+          "Cookie Tin #1": "Melty Kuih Bangkit",
+          "Cookie Tin #2": "Cashew Butter Cookies",
+        },
+      },
+    ],
+  });
+  const duoPaid = await setOrderStatus(duoOrder.id, "payment_submitted", "paynow");
+  assert.equal(duoPaid?.status, "payment_submitted");
+  assert.match(duoPaid!.items[0].variant_label, /Melty Kuih Bangkit/);
+  assert.match(duoPaid!.items[0].variant_label, /Cashew Butter Cookies/);
+  const board = (await listOrders()).filter((o) => isPaidLike(o.status));
+  const onBoard = board.find((o) => o.id === duoOrder.id);
+  assert.ok(onBoard);
+  assert.equal(onBoard.requested_date, "2026-09-12");
+  const duoRollup = productionRollup([onBoard]);
+  assert.ok(duoRollup.some((r) => /Melty Kuih Bangkit/.test(r.variant_label)));
+
+  const settings = await updateSettings({ min_order: 90, uen: "", gst_reg: "" });
   assert.equal(settings.min_order, 90);
+  assert.equal(settings.uen, "");
   assert.equal((await getSettings()).min_order, 90);
   const below = await quoteCart([{ sku: "SQ0179319", qty: 3 }], "delivery", false);
   assert.equal(below.totals.subtotal, 66);
@@ -218,6 +433,9 @@ async function main() {
     () => quoteCart([{ sku: "NO-SUCH-SKU", qty: 1 }], "delivery", false),
     /Unknown SKU/
   );
+
+  // Cleanup test SKU
+  await deleteProduct(stockProduct.slug);
 
   console.log("commerce tests ok");
 }

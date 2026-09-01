@@ -14,6 +14,8 @@ export async function POST(req: Request) {
     free_delivery_at: Number(body.free_delivery_at),
     express_fee: Number(body.express_fee),
     paynow_copy: String(body.paynow_copy || ""),
+    uen: String(body.uen || ""),
+    gst_reg: String(body.gst_reg || ""),
   });
   return NextResponse.json(s);
 }

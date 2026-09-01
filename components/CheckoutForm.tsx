@@ -31,6 +31,7 @@ export function CheckoutForm({
           address: kind === "delivery" ? fd.get("address") : "",
           notes: fd.get("notes"),
           express_slot: kind === "delivery" && fd.get("express_slot") === "on",
+          requested_date: String(fd.get("requested_date") || "").trim() || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -110,6 +111,10 @@ export function CheckoutForm({
           <input type="checkbox" name="express_slot" /> 3-hour delivery slot (+S$40)
         </label>
       ) : null}
+      <label className="block text-sm">
+        Preferred pickup / delivery date (optional)
+        <input type="date" name="requested_date" className="mt-1 w-full border border-sand bg-parchment px-3 py-2" />
+      </label>
       <label className="block text-sm">
         Notes
         <textarea name="notes" rows={2} className="mt-1 w-full border border-sand bg-parchment px-3 py-2" />

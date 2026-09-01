@@ -50,6 +50,9 @@ export default async function AdminOrders() {
                       {it.qty}× {it.product_title} ({it.variant_label})
                     </div>
                   ))}
+                  <a className="mt-2 inline-block border-b border-gold" href={`/admin/orders/${o.id}/invoice`}>
+                    Invoice
+                  </a>
                 </td>
               </tr>
             ))}

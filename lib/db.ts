@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type BetterSqlite3 from "better-sqlite3";
 import { cookies } from "next/headers";
-import { computeTotals, nextPayNowRef, type DeliveryKind, type OrderStatus } from "./pricing";
-import { findVariantIn, loadProducts } from "./catalog";
-import { mutateDeskStore, readDeskStore } from "./desk-store";
+import { computeTotals, isPaidLike, nextPayNowRef, type DeliveryKind, type OrderStatus } from "./pricing";
+import { decrementStockForLines, findVariantIn, loadProducts } from "./catalog";
+import { mutateDeskStore, readDeskStore, type DeskOrder } from "./desk-store";
 
 const globalForDb = globalThis as unknown as { ahWebDb?: BetterSqlite3.Database };
 
@@ -101,6 +101,19 @@ function seed(db: BetterSqlite3.Database) {
   }
 }
 
+function ensureOrderExtraColumns(db: BetterSqlite3.Database) {
+  const cols = (db.prepare("PRAGMA table_info(orders)").all() as Array<{ name: string }>).map((c) => c.name);
+  if (!cols.includes("requested_date")) {
+    db.exec("ALTER TABLE orders ADD COLUMN requested_date TEXT NOT NULL DEFAULT ''");
+  }
+  if (!cols.includes("stock_decremented")) {
+    db.exec("ALTER TABLE orders ADD COLUMN stock_decremented INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!cols.includes("invoice_no")) {
+    db.exec("ALTER TABLE orders ADD COLUMN invoice_no TEXT NOT NULL DEFAULT ''");
+  }
+}
+
 function ordersUseSqlite() {
   // Vercel /tmp sqlite is per-instance and collides across shoppers. Customer
   // orders live in the ah_orders cookie there; sqlite is for local/admin only.
@@ -114,6 +127,7 @@ export function getDb() {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const db = openSqlite(file);
     migrate(db);
+    ensureOrderExtraColumns(db);
     seed(db);
     globalForDb.ahWebDb = db;
     return db;
@@ -144,6 +158,8 @@ export type Settings = {
   free_delivery_at: number;
   express_fee: number;
   paynow_copy: string;
+  uen: string;
+  gst_reg: string;
   updated_at: string;
 };
 
@@ -155,6 +171,8 @@ export function defaultSettings(): Settings {
     free_delivery_at: 120,
     express_fee: 40,
     paynow_copy: DEFAULT_PAYNOW_COPY,
+    uen: "",
+    gst_reg: "",
     updated_at: nowIso(),
   };
 }
@@ -193,6 +211,9 @@ export type OrderRow = {
   payment_method: string;
   created_at: string;
   updated_at: string;
+  requested_date?: string;
+  stock_decremented?: boolean;
+  invoice_no?: string;
 };
 
 export type OrderItemRow = {
@@ -325,16 +346,31 @@ export async function persistOrder(order: OrderWithItems): Promise<OrderWithItem
 }
 
 function getOrderFromSqlite(id: number): OrderWithItems | undefined {
-  const order = getDb().prepare("SELECT * FROM orders WHERE id = ?").get(id) as OrderRow | undefined;
-  if (!order) return undefined;
+  const raw = getDb().prepare("SELECT * FROM orders WHERE id = ?").get(id) as (OrderRow & {
+    stock_decremented?: number | boolean;
+  }) | undefined;
+  if (!raw) return undefined;
   const items = getDb().prepare("SELECT * FROM order_items WHERE order_id = ?").all(id) as OrderItemRow[];
-  return { ...order, items };
+  return {
+    ...raw,
+    requested_date: raw.requested_date || undefined,
+    stock_decremented: Boolean(raw.stock_decremented),
+    invoice_no: raw.invoice_no || `INV-${raw.order_no}`,
+    items,
+  };
 }
 
 export async function getOrder(id: number): Promise<OrderWithItems | undefined> {
   const cookieOrders = await readStoredOrders();
   const fromCookie = cookieOrders.find((o) => o.id === id);
   if (fromCookie) return fromCookie;
+  try {
+    const desk = await listDeskOrders();
+    const fromDesk = desk.find((o) => o.id === id);
+    if (fromDesk) return fromDesk;
+  } catch {
+    /* desk miss */
+  }
   if (!ordersUseSqlite()) return undefined;
   try {
     return getOrderFromSqlite(id);
@@ -356,8 +392,17 @@ export async function findCustomerOrder(key: string): Promise<OrderWithItems | u
 
 export async function getOrderByRef(ref: string): Promise<OrderWithItems | undefined> {
   const cookieOrders = await readStoredOrders();
-  const fromCookie = cookieOrders.find((o) => o.paynow_ref === ref || o.order_no === ref);
+  const fromCookie = cookieOrders.find((o) => o.paynow_ref === ref || o.order_no === ref || o.invoice_no === ref);
   if (fromCookie) return fromCookie;
+  try {
+    const desk = await listDeskOrders();
+    const fromDesk = desk.find(
+      (o) => o.paynow_ref === ref || o.order_no === ref || o.invoice_no === ref
+    );
+    if (fromDesk) return fromDesk;
+  } catch {
+    /* desk miss */
+  }
   if (!ordersUseSqlite()) return undefined;
   try {
     const order = getDb()
@@ -368,6 +413,24 @@ export async function getOrderByRef(ref: string): Promise<OrderWithItems | undef
     /* sqlite miss or unavailable */
   }
   return undefined;
+}
+
+async function listDeskOrders(): Promise<OrderWithItems[]> {
+  const store = await readDeskStore();
+  const rows = Array.isArray(store.orders) ? store.orders : [];
+  return rows.filter((o) => o && typeof o.id === "number" && Array.isArray(o.items)) as OrderWithItems[];
+}
+
+export async function upsertDeskOrder(order: OrderWithItems): Promise<void> {
+  const row = JSON.parse(JSON.stringify(order)) as DeskOrder;
+  await mutateDeskStore((s) => {
+    const orders = Array.isArray(s.orders) ? s.orders : [];
+    const idx = orders.findIndex((o) => o.id === row.id || o.order_no === row.order_no);
+    if (idx >= 0) orders[idx] = row;
+    else orders.unshift(row);
+    s.orders = orders.slice(0, 200);
+    return s;
+  });
 }
 
 export async function listOrders(): Promise<OrderWithItems[]> {
@@ -381,6 +444,7 @@ export async function listOrders(): Promise<OrderWithItems[]> {
     seen.add(`no:${o.order_no}`);
     out.push(o);
   };
+  for (const o of await listDeskOrders()) remember(o);
   if (ordersUseSqlite()) {
     try {
       const rows = getDb().prepare("SELECT * FROM orders ORDER BY id DESC").all() as OrderRow[];
@@ -397,6 +461,31 @@ export async function listOrders(): Promise<OrderWithItems[]> {
   return out;
 }
 
+export function productionRollup(orders: OrderWithItems[]) {
+  const map = new Map<string, { product_title: string; variant_label: string; qty: number }>();
+  for (const o of orders) {
+    for (const it of o.items || []) {
+      const key = `${it.product_title}\0${it.variant_label}`;
+      const cur = map.get(key) || {
+        product_title: it.product_title,
+        variant_label: it.variant_label,
+        qty: 0,
+      };
+      cur.qty += Number(it.qty) || 0;
+      map.set(key, cur);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    a.product_title === b.product_title
+      ? a.variant_label.localeCompare(b.variant_label)
+      : a.product_title.localeCompare(b.product_title)
+  );
+}
+
+export function invoiceNumberFor(order: OrderWithItems) {
+  return order.invoice_no || `INV-${order.order_no}`;
+}
+
 export async function createOrder(input: {
   customer_name: string;
   customer_phone: string;
@@ -406,6 +495,7 @@ export async function createOrder(input: {
   notes: string;
   express_slot: boolean;
   lines: CartLine[];
+  requested_date?: string;
 }): Promise<OrderWithItems> {
   const { items, totals } = await quoteCart(input.lines, input.delivery_kind, input.express_slot);
   if (!items.length) throw new Error("Cart is empty");
@@ -416,6 +506,7 @@ export async function createOrder(input: {
     throw new Error("Delivery address is required");
   }
   const now = nowIso();
+  const requested = String(input.requested_date || "").trim();
   const customer = {
     customer_name: input.customer_name.trim(),
     customer_phone: input.customer_phone.trim(),
@@ -427,6 +518,7 @@ export async function createOrder(input: {
     subtotal: totals.subtotal,
     delivery_fee: totals.delivery,
     total: totals.total,
+    requested_date: requested || undefined,
   };
 
   function assemble(id: number, order_no: string, paynow_ref: string, itemRows?: OrderItemRow[]): OrderWithItems {
@@ -439,6 +531,8 @@ export async function createOrder(input: {
       payment_method: "",
       created_at: now,
       updated_at: now,
+      stock_decremented: false,
+      invoice_no: `INV-${order_no}`,
       items:
         itemRows ??
         items.map((it, i) => ({
@@ -462,10 +556,11 @@ export async function createOrder(input: {
       const seq = (db.prepare("SELECT COUNT(*) AS c FROM orders").get() as { c: number }).c + 1;
       const paynow = nextPayNowRef(seq);
       const orderNo = paynow.replace("AH-", "AH");
+      const invoiceNo = `INV-${orderNo}`;
       const info = db
         .prepare(
-          `INSERT INTO orders (order_no, paynow_ref, customer_name, customer_phone, customer_email, delivery_kind, address, notes, express_slot, subtotal, delivery_fee, total, status, payment_method, created_at, updated_at)
-           VALUES (@order_no, @paynow_ref, @customer_name, @customer_phone, @customer_email, @delivery_kind, @address, @notes, @express_slot, @subtotal, @delivery_fee, @total, 'pending_payment', '', @now, @now)`
+          `INSERT INTO orders (order_no, paynow_ref, customer_name, customer_phone, customer_email, delivery_kind, address, notes, express_slot, subtotal, delivery_fee, total, status, payment_method, created_at, updated_at, requested_date, stock_decremented, invoice_no)
+           VALUES (@order_no, @paynow_ref, @customer_name, @customer_phone, @customer_email, @delivery_kind, @address, @notes, @express_slot, @subtotal, @delivery_fee, @total, 'pending_payment', '', @now, @now, @requested_date, 0, @invoice_no)`
         )
         .run({
           order_no: orderNo,
@@ -481,6 +576,8 @@ export async function createOrder(input: {
           delivery_fee: customer.delivery_fee,
           total: customer.total,
           now,
+          requested_date: customer.requested_date || "",
+          invoice_no: invoiceNo,
         });
       const id = Number(info.lastInsertRowid);
       const ins = db.prepare(
@@ -491,7 +588,17 @@ export async function createOrder(input: {
       return id;
     });
     const id = tx();
-    order = getOrderFromSqlite(id) ?? assemble(id, "", "");
+    const fromSql = getOrderFromSqlite(id);
+    if (fromSql) {
+      order = {
+        ...fromSql,
+        requested_date: customer.requested_date,
+        stock_decremented: false,
+        invoice_no: `INV-${fromSql.order_no}`,
+      };
+    } else {
+      order = assemble(id, "", "");
+    }
   } catch {
     const existing = await readStoredOrders();
     const id = Math.max(0, ...existing.map((o) => o.id)) + 1;
@@ -502,6 +609,13 @@ export async function createOrder(input: {
   }
   await persistOrder(order);
   return order;
+}
+
+export async function getOrderAnywhere(id: number): Promise<OrderWithItems | undefined> {
+  const direct = await getOrder(id);
+  if (direct) return direct;
+  const all = await listOrders();
+  return all.find((o) => o.id === id);
 }
 
 export async function setOrderStatus(id: number, status: OrderStatus, paymentMethod?: string) {
@@ -517,16 +631,67 @@ export async function setOrderStatus(id: number, status: OrderStatus, paymentMet
       /* sqlite unavailable */
     }
   }
-  let order: OrderWithItems | undefined = await getOrder(id);
+  let order: OrderWithItems | undefined = await getOrderAnywhere(id);
   if (!order) return undefined;
-  const next: OrderWithItems = {
+  let next: OrderWithItems = {
     ...order,
     status,
     payment_method: paymentMethod ?? order.payment_method,
     updated_at: nowIso(),
+    invoice_no: order.invoice_no || `INV-${order.order_no}`,
   };
+  // First transition into a paid-like state decrements stock once.
+  if (isPaidLike(status) && !next.stock_decremented) {
+    await decrementStockForLines(
+      next.items.map((it) => ({
+        product_slug: it.product_slug,
+        sku: it.sku,
+        qty: it.qty,
+      }))
+    );
+    next = { ...next, stock_decremented: true };
+  }
   await persistOrder(next);
+  if (ordersUseSqlite()) {
+    try {
+      getDb()
+        .prepare(
+          "UPDATE orders SET status = ?, payment_method = COALESCE(?, payment_method), updated_at = ?, stock_decremented = ?, invoice_no = COALESCE(NULLIF(invoice_no, ''), ?), requested_date = COALESCE(NULLIF(requested_date, ''), ?) WHERE id = ?"
+        )
+        .run(
+          next.status,
+          next.payment_method,
+          next.updated_at,
+          next.stock_decremented ? 1 : 0,
+          next.invoice_no || "",
+          next.requested_date || "",
+          id
+        );
+    } catch {
+      /* sqlite unavailable */
+    }
+  }
+  if (isPaidLike(status)) {
+    try {
+      await upsertDeskOrder(next);
+    } catch (e) {
+      console.error("[desk] order upsert failed");
+    }
+  }
   return next;
+}
+
+/** Mark paid (Stripe / kitchen). Idempotent stock via stock_decremented. */
+export async function markOrderPaid(id: number, paymentMethod = "stripe") {
+  const cur = await getOrderAnywhere(id);
+  if (!cur) return undefined;
+  if (cur.status === "pending_payment" || cur.status === "payment_submitted") {
+    return setOrderStatus(id, "paid", paymentMethod);
+  }
+  if (!cur.payment_method && paymentMethod) {
+    return setOrderStatus(id, cur.status, paymentMethod);
+  }
+  return cur;
 }
 
 export type Enquiry = {

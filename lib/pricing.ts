@@ -51,10 +51,29 @@ export const ALLOWED_STATUSES = [
   "pending_payment",
   "payment_submitted",
   "paid",
+  "in_production",
+  "ready",
   "packing",
+  "collected",
   "shipped",
   "completed",
   "cancelled",
 ] as const;
 
 export type OrderStatus = (typeof ALLOWED_STATUSES)[number];
+
+/** Orders that kitchen should make / pack. */
+export const PRODUCTION_STATUSES: OrderStatus[] = [
+  "payment_submitted",
+  "paid",
+  "in_production",
+  "ready",
+  "packing",
+  "collected",
+  "shipped",
+  "completed",
+];
+
+export function isPaidLike(status: string) {
+  return PRODUCTION_STATUSES.includes(status as OrderStatus);
+}

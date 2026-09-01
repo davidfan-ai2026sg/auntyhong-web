@@ -15,6 +15,8 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         free_delivery_at: Number(fd.get("free_delivery_at")),
         express_fee: Number(fd.get("express_fee")),
         paynow_copy: fd.get("paynow_copy"),
+        uen: String(fd.get("uen") || ""),
+        gst_reg: String(fd.get("gst_reg") || ""),
       }),
     });
     window.location.reload();
@@ -40,6 +42,14 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       <label className="block text-sm">
         PayNow copy
         <textarea name="paynow_copy" rows={4} defaultValue={settings.paynow_copy} className="mt-1 w-full border border-sand px-3 py-2" />
+      </label>
+      <label className="block text-sm">
+        UEN (optional — leave empty for demo invoices)
+        <input name="uen" defaultValue={settings.uen || ""} className="mt-1 w-full border border-sand px-3 py-2" />
+      </label>
+      <label className="block text-sm">
+        GST registration (optional)
+        <input name="gst_reg" defaultValue={settings.gst_reg || ""} className="mt-1 w-full border border-sand px-3 py-2" />
       </label>
       <button className="bg-cocoa text-parchment px-6 py-3 text-sm">Save</button>
     </form>

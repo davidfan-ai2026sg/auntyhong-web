@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { findCustomerOrder } from "@/lib/db";
 import { formatSgd } from "@/lib/pricing";
 import { PayActions } from "@/components/PayActions";
+import { stripeClientFacing } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderId: s
   const ref = String(order.paynow_ref || order.order_no);
   const qr = await paynowQr(ref);
   const status = String(order.status || "pending_payment").replaceAll("_", " ");
+  const stripeOn = stripeClientFacing();
   return (
     <div className="mx-auto max-w-xl px-5 py-14">
       <p className="kicker">Demo payment</p>
@@ -39,7 +41,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderId: s
         <p className="mt-4 font-medium tracking-wide">{ref}</p>
         <p className="mt-2 text-xs text-cocoa/50">Status: {status}</p>
       </div>
-      <PayActions orderId={Number(order.id)} status={String(order.status || "pending_payment")} />
+      <PayActions orderId={Number(order.id)} status={String(order.status || "pending_payment")} stripeEnabled={stripeOn} />
     </div>
   );
 }
