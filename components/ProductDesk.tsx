@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import type { Product } from "@/lib/catalog";
+import type { AdditionalField, Product } from "@/lib/catalog";
 import { formatSgd } from "@/lib/pricing";
 
 const fieldClass =
@@ -25,6 +25,132 @@ function categoriesFromForm(fd: FormData) {
     .filter(Boolean);
 }
 
+function OptionGroupsEditor({
+  groups,
+  onChange,
+}: {
+  groups: AdditionalField[];
+  onChange: (next: AdditionalField[]) => void;
+}) {
+  function updateGroup(i: number, patch: Partial<AdditionalField>) {
+    onChange(groups.map((g, idx) => (idx === i ? { ...g, ...patch } : g)));
+  }
+  function updateChoice(gi: number, ci: number, value: string) {
+    onChange(
+      groups.map((g, idx) => {
+        if (idx !== gi) return g;
+        const options = g.options.map((o, j) => (j === ci ? value : o));
+        return { ...g, options };
+      })
+    );
+  }
+  function addChoice(gi: number) {
+    onChange(
+      groups.map((g, idx) =>
+        idx === gi ? { ...g, options: [...g.options, "New flavor"] } : g
+      )
+    );
+  }
+  function removeChoice(gi: number, ci: number) {
+    onChange(
+      groups.map((g, idx) =>
+        idx === gi ? { ...g, options: g.options.filter((_, j) => j !== ci) } : g
+      )
+    );
+  }
+  function moveChoice(gi: number, ci: number, dir: -1 | 1) {
+    onChange(
+      groups.map((g, idx) => {
+        if (idx !== gi) return g;
+        const options = [...g.options];
+        const j = ci + dir;
+        if (j < 0 || j >= options.length) return g;
+        const tmp = options[ci];
+        options[ci] = options[j];
+        options[j] = tmp;
+        return { ...g, options };
+      })
+    );
+  }
+
+  return (
+    <div className="sm:col-span-2 space-y-4 border border-sand/80 bg-sand/30 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="kicker">Option groups</p>
+        <button
+          type="button"
+          className="border-b border-gold text-xs"
+          onClick={() =>
+            onChange([
+              ...groups,
+              { title: `Option group ${groups.length + 1}`, required: true, options: ["Choice A"] },
+            ])
+          }
+        >
+          Add option group
+        </button>
+      </div>
+      {groups.length === 0 ? (
+        <p className="text-xs text-cocoa/60">No option groups — simple SKU. Add one for gift-set pickers.</p>
+      ) : null}
+      {groups.map((g, gi) => (
+        <div key={gi} className="border border-sand bg-parchment p-3 space-y-2">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block text-sm flex-1 min-w-[10rem]">
+              Group name
+              <input
+                value={g.title}
+                onChange={(e) => updateGroup(gi, { title: e.target.value })}
+                className={fieldClass}
+                placeholder="Cookie Tin #1"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm pb-2">
+              <input
+                type="checkbox"
+                checked={g.required}
+                onChange={(e) => updateGroup(gi, { required: e.target.checked })}
+              />{" "}
+              Required
+            </label>
+            <button
+              type="button"
+              className="text-xs text-cinnabar pb-2"
+              onClick={() => onChange(groups.filter((_, i) => i !== gi))}
+            >
+              Remove group
+            </button>
+          </div>
+          <p className="text-xs text-cocoa/50">Choices</p>
+          <ul className="space-y-2">
+            {g.options.map((opt, ci) => (
+              <li key={ci} className="flex flex-wrap items-center gap-2">
+                <input
+                  value={opt}
+                  onChange={(e) => updateChoice(gi, ci, e.target.value)}
+                  className={`${fieldClass} mt-0 flex-1`}
+                />
+                <button type="button" className="text-xs" onClick={() => moveChoice(gi, ci, -1)}>
+                  ↑
+                </button>
+                <button type="button" className="text-xs" onClick={() => moveChoice(gi, ci, 1)}>
+                  ↓
+                </button>
+                <button type="button" className="text-xs text-cinnabar" onClick={() => removeChoice(gi, ci)}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="border-b border-gold text-xs" onClick={() => addChoice(gi)}>
+            Add choice
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ProductForm({
   product,
   onSubmit,
@@ -32,15 +158,20 @@ function ProductForm({
   busy,
 }: {
   product?: Product;
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>, options: AdditionalField[]) => void;
   onCancel: () => void;
   busy: boolean;
 }) {
   const v = product?.variants[0];
   const isEdit = Boolean(product);
+  const initial = product?.additionalFields ?? [];
+  const [options, setOptions] = useState<AdditionalField[]>(
+    initial.map((f) => ({ ...f, options: [...f.options] }))
+  );
+  const [showOptions, setShowOptions] = useState(initial.length > 0);
 
   return (
-    <form onSubmit={onSubmit} className="mt-5 grid gap-4 sm:grid-cols-2">
+    <form onSubmit={(e) => onSubmit(e, options)} className="mt-5 grid gap-4 sm:grid-cols-2">
       <label className="block text-sm sm:col-span-2">
         Title
         <input name="title" required defaultValue={product?.title ?? ""} className={fieldClass} />
@@ -99,6 +230,26 @@ function ProductForm({
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="soldOut" defaultChecked={product?.soldOut} /> Sold out
       </label>
+
+      {showOptions ? (
+        <OptionGroupsEditor groups={options} onChange={setOptions} />
+      ) : (
+        <div className="sm:col-span-2">
+          <button
+            type="button"
+            className="border-b border-gold text-sm"
+            onClick={() => {
+              setShowOptions(true);
+              if (!options.length) {
+                setOptions([{ title: "Cookie Tin #1", required: true, options: ["Flavor A"] }]);
+              }
+            }}
+          >
+            Add option group
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
         <button
           type="submit"
@@ -149,10 +300,21 @@ export function ProductDesk({ products }: { products: Product[] }) {
     }
   }
 
-  async function onCreate(e: React.FormEvent<HTMLFormElement>) {
+  function cleanOptions(options: AdditionalField[]) {
+    return options
+      .map((g) => ({
+        title: String(g.title || "").trim(),
+        required: Boolean(g.required),
+        options: (g.options || []).map((o) => String(o).trim()).filter(Boolean),
+      }))
+      .filter((g) => g.title);
+  }
+
+  async function onCreate(e: React.FormEvent<HTMLFormElement>, options: AdditionalField[]) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const categories = categoriesFromForm(fd);
+    const additionalFields = cleanOptions(options);
     await run({
       action: "create",
       product: {
@@ -167,14 +329,17 @@ export function ProductDesk({ products }: { products: Product[] }) {
         image: String(fd.get("image") || ""),
         categories: categories.length ? categories : ["Shop"],
         label: "Standard",
+        additionalFields,
+        options: additionalFields,
       },
     });
   }
 
-  async function onUpdate(e: React.FormEvent<HTMLFormElement>, slug: string) {
+  async function onUpdate(e: React.FormEvent<HTMLFormElement>, slug: string, options: AdditionalField[]) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const categories = categoriesFromForm(fd);
+    const additionalFields = cleanOptions(options);
     await run({
       action: "update",
       slug,
@@ -188,6 +353,8 @@ export function ProductDesk({ products }: { products: Product[] }) {
         description: String(fd.get("description") || ""),
         image: String(fd.get("image") || ""),
         categories,
+        additionalFields,
+        options: additionalFields,
       },
     });
   }
@@ -229,6 +396,7 @@ export function ProductDesk({ products }: { products: Product[] }) {
                 <th className="font-medium">SKU</th>
                 <th className="font-medium">Price</th>
                 <th className="font-medium">Stock</th>
+                <th className="font-medium">Options</th>
                 <th className="font-medium">Sold out</th>
                 <th className="font-medium"></th>
               </tr>
@@ -246,6 +414,11 @@ export function ProductDesk({ products }: { products: Product[] }) {
                     <td className="py-3 pr-4 whitespace-nowrap">{formatSgd(v?.price ?? p.fromPrice)}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">
                       {v?.unlimited ? "Unlimited" : String(v?.stock ?? 0)}
+                    </td>
+                    <td className="py-3 pr-4 whitespace-nowrap text-xs text-cocoa/60">
+                      {p.additionalFields?.length
+                        ? `${p.additionalFields.length} group${p.additionalFields.length === 1 ? "" : "s"}`
+                        : "—"}
                     </td>
                     <td className="py-3 pr-4">
                       {p.soldOut ? (
@@ -280,6 +453,9 @@ export function ProductDesk({ products }: { products: Product[] }) {
               })}
             </tbody>
           </table>
+          {!products.length ? (
+            <p className="mt-6 text-sm text-cocoa/60">Catalogue is empty. Add a product to restock the shop.</p>
+          ) : null}
         </div>
       </section>
 
@@ -313,7 +489,7 @@ export function ProductDesk({ products }: { products: Product[] }) {
               product={editing}
               busy={busy}
               onCancel={close}
-              onSubmit={editing ? (e) => onUpdate(e, editing.slug) : onCreate}
+              onSubmit={editing ? (e, opts) => onUpdate(e, editing.slug, opts) : onCreate}
             />
           </div>
         </div>

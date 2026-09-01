@@ -36,6 +36,8 @@ export type ProductWrite = Partial<Product> & {
   stock?: number;
   unlimited?: boolean;
   label?: string;
+  /** Alias for additionalFields (gift-box option groups). */
+  options?: AdditionalField[];
 };
 
 const IMAGE_OVERRIDES: Record<string, string> = {
@@ -268,7 +270,11 @@ function applyConvenience(base: Product, patch: Partial<ProductWrite>): Product 
     image: patch.image ?? base.image,
     soldOut: patch.soldOut ?? base.soldOut,
     categories: asStringArray(patch.categories) ?? patch.categories ?? base.categories,
-    additionalFields: asFields(patch.additionalFields) ?? patch.additionalFields ?? base.additionalFields,
+    additionalFields:
+      asFields(patch.additionalFields ?? patch.options) ??
+      patch.additionalFields ??
+      patch.options ??
+      base.additionalFields,
     variants: patch.variants ? patch.variants.map((v) => ({ ...v })) : base.variants.map((v) => ({ ...v })),
     fromPrice: base.fromPrice,
   };
@@ -398,4 +404,41 @@ export async function setProductStock(input: {
   invalidateProductCache();
   if (!updated) throw new Error("Product not found");
   return updated;
+}
+
+export async function clearAllProducts(): Promise<number> {
+  invalidateProductCache();
+  let n = 0;
+  await mutateDeskStore((s) => {
+    n = s.products.length;
+    s.products = [];
+    return s;
+  });
+  invalidateProductCache();
+  return n;
+}
+
+export async function decrementStockForLines(
+  lines: Array<{ product_slug: string; sku: string; qty: number }>
+): Promise<void> {
+  if (!lines.length) return;
+  invalidateProductCache();
+  await mutateDeskStore((s) => {
+    for (const line of lines) {
+      const idx = s.products.findIndex((p) => p.slug === line.product_slug);
+      if (idx < 0) continue;
+      const product = {
+        ...s.products[idx],
+        variants: s.products[idx].variants.map((v) => ({ ...v })),
+      };
+      const variant =
+        product.variants.find((v) => v.sku === line.sku) || product.variants[0];
+      if (!variant || variant.unlimited) continue;
+      const qty = Math.max(1, Math.floor(Number(line.qty) || 1));
+      variant.stock = Math.max(0, Number(variant.stock) - qty);
+      s.products[idx] = recomputeProduct(product);
+    }
+    return s;
+  });
+  invalidateProductCache();
 }

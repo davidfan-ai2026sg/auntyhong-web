@@ -4,12 +4,48 @@ import { unstable_noStore as noStore } from "next/cache";
 import type { Product } from "./catalog";
 import type { Enquiry, Settings } from "./db";
 
+export type DeskOrderItem = {
+  id: number;
+  order_id: number;
+  product_slug: string;
+  product_title: string;
+  sku: string;
+  variant_label: string;
+  unit_price: number;
+  qty: number;
+};
+
+export type DeskOrder = {
+  id: number;
+  order_no: string;
+  paynow_ref: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  delivery_kind: "delivery" | "collect";
+  address: string;
+  notes: string;
+  express_slot: number;
+  subtotal: number;
+  delivery_fee: number;
+  total: number;
+  status: string;
+  payment_method: string;
+  created_at: string;
+  updated_at: string;
+  requested_date?: string;
+  stock_decremented?: boolean;
+  invoice_no?: string;
+  items: DeskOrderItem[];
+};
+
 export type DeskStore = {
   version: number;
   products: Product[];
   enquiries: Enquiry[];
   settings: Settings;
   nextEnquiryId: number;
+  orders: DeskOrder[];
 };
 
 export type DeskStorage = "blob" | "file" | "tmp";
@@ -131,22 +167,22 @@ async function withLock<T>(fn: () => Promise<T>): Promise<T> {
 async function seedStore(partial?: Partial<DeskStore> | null): Promise<DeskStore> {
   const { seedProducts } = await import("./catalog");
   const { defaultSettings } = await import("./db");
-  const products =
-    Array.isArray(partial?.products) && partial.products.length > 0
-      ? partial.products
-      : seedProducts();
+  // Explicit empty array is allowed (kitchen cleared catalogue). Only seed when missing.
+  const products = Array.isArray(partial?.products) ? partial.products : seedProducts();
   const settings = partial?.settings && typeof partial.settings === "object"
     ? { ...defaultSettings(), ...partial.settings, id: 1 }
     : defaultSettings();
   const enquiries = Array.isArray(partial?.enquiries) ? partial.enquiries : [];
   const maxId = enquiries.reduce((m, e) => Math.max(m, Number(e?.id) || 0), 0);
   const nextEnquiryId = Math.max(Number(partial?.nextEnquiryId) || 1, maxId + 1);
+  const orders = Array.isArray(partial?.orders) ? (partial.orders as DeskOrder[]) : [];
   return {
     version: Number(partial?.version) || 0,
     products,
     enquiries,
     settings,
     nextEnquiryId,
+    orders,
   };
 }
 
@@ -268,7 +304,8 @@ async function persistStore(store: DeskStore) {
 async function loadFresh(): Promise<DeskStore> {
   const raw = await readFromBackend();
   const store = await seedStore(raw);
-  if (!raw || !Array.isArray(raw.products) || raw.products.length === 0) {
+  // First boot only: no desk file yet → persist seeded catalogue.
+  if (!raw) {
     store.version = Math.max(store.version, 1);
     await persistStore(store);
   }
@@ -302,6 +339,7 @@ export async function mutateDeskStore(
     next.version = (Number(current.version) || 0) + 1;
     if (!Array.isArray(next.products)) next.products = current.products;
     if (!Array.isArray(next.enquiries)) next.enquiries = current.enquiries;
+    if (!Array.isArray(next.orders)) next.orders = current.orders || [];
     if (!next.settings) next.settings = current.settings;
     if (!next.nextEnquiryId) next.nextEnquiryId = current.nextEnquiryId;
     await persistStore(next);
