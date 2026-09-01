@@ -601,13 +601,25 @@ export async function createOrder(input: {
     }
   } catch {
     const existing = await readStoredOrders();
-    const id = Math.max(0, ...existing.map((o) => o.id)) + 1;
-    const seq = existing.length + 1;
+    let deskOrders: OrderWithItems[] = [];
+    try {
+      deskOrders = await listDeskOrders();
+    } catch {
+      /* desk miss */
+    }
+    const id =
+      Math.max(0, ...existing.map((o) => o.id), ...deskOrders.map((o) => o.id)) + 1;
+    const seq = Math.max(existing.length, deskOrders.length) + 1;
     const paynow = nextPayNowRef(seq);
     const orderNo = paynow.replace("AH-", "AH");
     order = assemble(id, orderNo, paynow);
   }
   await persistOrder(order);
+  try {
+    await upsertDeskOrder(order);
+  } catch {
+    console.error("[desk] order upsert on create failed");
+  }
   return order;
 }
 

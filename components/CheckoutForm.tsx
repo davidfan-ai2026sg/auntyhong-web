@@ -39,12 +39,18 @@ export function CheckoutForm({
         setErr((data as { error?: string }).error || "Could not place order. Please try again.");
         return;
       }
-      const id = (data as { id?: number }).id;
-      if (!id) {
+      const payload = data as {
+        id?: number;
+        order_no?: string;
+        ref?: string;
+        paynow_ref?: string;
+      };
+      const payKey = payload.order_no || payload.ref || payload.paynow_ref || payload.id;
+      if (!payKey) {
         setErr("Could not place order. Please try again.");
         return;
       }
-      window.location.href = `/pay/${id}`;
+      window.location.href = `/pay/${encodeURIComponent(String(payKey))}`;
     } catch {
       setErr("Could not place order. Please try again.");
     } finally {

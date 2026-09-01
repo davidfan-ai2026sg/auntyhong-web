@@ -36,7 +36,12 @@ export async function POST(req: Request) {
     const stored = await persistOrder(order);
     await writeCart([]);
     revalidatePath("/", "layout");
-    const res = NextResponse.json({ id: order.id, ref: order.paynow_ref });
+    const res = NextResponse.json({
+      id: order.id,
+      order_no: order.order_no,
+      ref: order.paynow_ref,
+      paynow_ref: order.paynow_ref,
+    });
     res.cookies.set(CART_COOKIE, "[]", CART_COOKIE_OPTS);
     res.cookies.set(ORDER_COOKIE, JSON.stringify(stored), ORDER_COOKIE_OPTS);
     return res;

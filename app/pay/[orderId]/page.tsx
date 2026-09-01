@@ -1,7 +1,7 @@
-import { notFound } from "next/navigation";
 import { findCustomerOrder } from "@/lib/db";
 import { formatSgd } from "@/lib/pricing";
 import { PayActions } from "@/components/PayActions";
+import { PayRecovery } from "@/components/PayRecovery";
 import { stripeClientFacing } from "@/lib/stripe";
 
 export const runtime = "nodejs";
@@ -20,7 +20,14 @@ async function paynowQr(ref: string) {
 export default async function PayPage({ params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = await params;
   const order = await findCustomerOrder(orderId);
-  if (!order) notFound();
+  if (!order) {
+    return (
+      <PayRecovery
+        title="No order to pay"
+        detail="We could not find this order. It may have expired from this browser, or the payment link is incomplete. Please return to checkout to place a new order."
+      />
+    );
+  }
   const ref = String(order.paynow_ref || order.order_no);
   const qr = await paynowQr(ref);
   const status = String(order.status || "pending_payment").replaceAll("_", " ");

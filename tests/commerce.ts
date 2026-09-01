@@ -132,6 +132,17 @@ async function main() {
   assert.equal(order.total, 81);
   assert.match(order.paynow_ref, /^AH-\d{8}-\d{3}$/);
 
+  // Pending orders must land on desk at create (not only after paid)
+  const deskAfterCreate = await readDeskStore();
+  assert.ok(
+    deskAfterCreate.orders.some((o) => o.order_no === order.order_no && o.status === "pending_payment"),
+    "createOrder should upsertDeskOrder"
+  );
+  const byOrderNo = await findCustomerOrder(order.order_no);
+  assert.equal(byOrderNo?.id, order.id);
+  const byRef = await findCustomerOrder(order.paynow_ref);
+  assert.equal(byRef?.order_no, order.order_no);
+
   await assert.rejects(
     () =>
       createOrder({
@@ -176,6 +187,11 @@ async function main() {
 
   const found = await findCustomerOrder(String(pickup.id));
   assert.equal(found?.order_no, pickup.order_no);
+  const foundByNo = await findCustomerOrder(pickup.order_no);
+  assert.equal(foundByNo?.id, pickup.id);
+  // Desk already has pending pickup; findCustomerOrder resolves via desk/sqlite without needing cookie
+  const deskPending = await readDeskStore();
+  assert.ok(deskPending.orders.some((o) => o.order_no === pickup.order_no));
 
   const submitted = await setOrderStatus(order.id, "payment_submitted", "paynow");
   assert.equal(submitted?.status, "payment_submitted");
