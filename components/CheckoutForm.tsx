@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatSgd, roundMoney } from "@/lib/pricing";
+import { SgAddressFields } from "@/components/SgAddressFields";
 
 export function CheckoutForm({
   subtotal,
@@ -162,15 +163,7 @@ export function CheckoutForm({
         </label>
       </fieldset>
       {kind === "delivery" ? (
-        <label className="block text-sm">
-          Address
-          <textarea
-            name="address"
-            rows={3}
-            required
-            className="mt-1 w-full border border-sand bg-parchment px-3 py-2"
-          />
-        </label>
+        <SgAddressFields />
       ) : (
         <p className="text-sm text-cocoa/70">
           Collect at 88 Demo Lane #01-01, Singapore 123456. No walk-in — we will confirm the pickup time.
