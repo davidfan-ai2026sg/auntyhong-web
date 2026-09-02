@@ -112,6 +112,9 @@ function ensureOrderExtraColumns(db: BetterSqlite3.Database) {
   if (!cols.includes("invoice_no")) {
     db.exec("ALTER TABLE orders ADD COLUMN invoice_no TEXT NOT NULL DEFAULT ''");
   }
+  if (!cols.includes("stripe_payment_intent_id")) {
+    db.exec("ALTER TABLE orders ADD COLUMN stripe_payment_intent_id TEXT NOT NULL DEFAULT ''");
+  }
 }
 
 function ordersUseSqlite() {
@@ -214,6 +217,7 @@ export type OrderRow = {
   requested_date?: string;
   stock_decremented?: boolean;
   invoice_no?: string;
+  stripe_payment_intent_id?: string;
 };
 
 export type OrderItemRow = {
@@ -356,6 +360,7 @@ function getOrderFromSqlite(id: number): OrderWithItems | undefined {
     requested_date: raw.requested_date || undefined,
     stock_decremented: Boolean(raw.stock_decremented),
     invoice_no: raw.invoice_no || `INV-${raw.order_no}`,
+    stripe_payment_intent_id: raw.stripe_payment_intent_id || undefined,
     items,
   };
 }
@@ -689,6 +694,33 @@ export async function setOrderStatus(id: number, status: OrderStatus, paymentMet
     } catch (e) {
       console.error("[desk] order upsert failed");
     }
+  }
+  return next;
+}
+
+
+/** Persist Stripe PaymentIntent id on the order (cookie + desk + sqlite) for reuse. */
+export async function rememberStripePaymentIntent(id: number, paymentIntentId: string) {
+  const pi = String(paymentIntentId || "").trim();
+  if (!pi) return undefined;
+  let order = await getOrderAnywhere(id);
+  if (!order) return undefined;
+  if (order.stripe_payment_intent_id === pi) return order;
+  const next: OrderWithItems = { ...order, stripe_payment_intent_id: pi, updated_at: nowIso() };
+  await persistOrder(next);
+  if (ordersUseSqlite()) {
+    try {
+      getDb()
+        .prepare("UPDATE orders SET stripe_payment_intent_id = ?, updated_at = ? WHERE id = ?")
+        .run(pi, next.updated_at, id);
+    } catch {
+      /* sqlite unavailable */
+    }
+  }
+  try {
+    await upsertDeskOrder(next);
+  } catch {
+    console.error("[desk] payment intent upsert failed");
   }
   return next;
 }

@@ -2,7 +2,7 @@ import { findCustomerOrder } from "@/lib/db";
 import { formatSgd } from "@/lib/pricing";
 import { PayActions } from "@/components/PayActions";
 import { PayRecovery } from "@/components/PayRecovery";
-import { stripeClientFacing } from "@/lib/stripe";
+import { stripeClientFacing, stripePublishableKey } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,12 +32,14 @@ export default async function PayPage({ params }: { params: Promise<{ orderId: s
   const qr = await paynowQr(ref);
   const status = String(order.status || "pending_payment").replaceAll("_", " ");
   const stripeOn = stripeClientFacing();
+  const pk = stripePublishableKey();
   return (
     <div className="mx-auto max-w-xl px-5 py-14">
       <p className="kicker">Demo payment</p>
-      <h1 className="display mt-2 text-5xl">PayNow</h1>
+      <h1 className="display mt-2 text-5xl">Pay</h1>
       <p className="mt-4 text-cocoa/75">
-        Order {order.order_no}. Amount {formatSgd(Number(order.total))}. This QR encodes the reference only — not a real UEN.
+        Order {order.order_no}. Amount {formatSgd(Number(order.total))}. Card stays on this page when
+        Stripe test keys are set; PayNow QR is the kitchen fallback.
       </p>
       <div className="mt-8 bg-parchment border border-sand p-6 text-center">
         {qr ? (
@@ -48,7 +50,12 @@ export default async function PayPage({ params }: { params: Promise<{ orderId: s
         <p className="mt-4 font-medium tracking-wide">{ref}</p>
         <p className="mt-2 text-xs text-cocoa/50">Status: {status}</p>
       </div>
-      <PayActions orderId={Number(order.id)} status={String(order.status || "pending_payment")} stripeEnabled={stripeOn} />
+      <PayActions
+        orderId={Number(order.id)}
+        status={String(order.status || "pending_payment")}
+        stripeEnabled={stripeOn}
+        publishableKey={pk}
+      />
     </div>
   );
 }

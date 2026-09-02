@@ -5,6 +5,11 @@ import { getStripe, stripeSecretKey } from "@/lib/stripe";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function orderIdFromMeta(meta?: { orderId?: string } | null, fallback?: string | null) {
+  const id = Number(meta?.orderId || fallback || 0);
+  return Number.isFinite(id) && id > 0 ? id : 0;
+}
+
 export async function POST(req: Request) {
   const stripe = getStripe();
   if (!stripe || !stripeSecretKey()) {
@@ -36,10 +41,22 @@ export async function POST(req: Request) {
     if (session.payment_status && session.payment_status !== "paid") {
       return NextResponse.json({ received: true });
     }
-    const id = Number(session.metadata?.orderId || session.client_reference_id || 0);
+    const id = orderIdFromMeta(session.metadata, session.client_reference_id);
     if (id > 0) {
       await markOrderPaid(id, "stripe");
     }
   }
+
+  if (event.type === "payment_intent.succeeded") {
+    const pi = event.data.object as {
+      metadata?: { orderId?: string };
+      id?: string;
+    };
+    const id = orderIdFromMeta(pi.metadata);
+    if (id > 0) {
+      await markOrderPaid(id, "stripe");
+    }
+  }
+
   return NextResponse.json({ received: true });
 }

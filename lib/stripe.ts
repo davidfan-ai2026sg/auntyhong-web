@@ -34,3 +34,17 @@ export function getStripe(): Stripe | null {
   cached = new Stripe(key);
   return cached;
 }
+
+/** SGD dollars → integer cents for PaymentIntent / Checkout. */
+export function orderAmountCents(total: number): number {
+  const n = Number(total);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100);
+}
+
+/** Parse orderId from a payment-intent request body. */
+export function parsePaymentIntentOrderId(body: { orderId?: unknown }): number {
+  const id = Number(body?.orderId);
+  if (!Number.isFinite(id) || id <= 0) return 0;
+  return Math.floor(id);
+}

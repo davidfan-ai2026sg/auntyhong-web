@@ -36,6 +36,7 @@ export type DeskOrder = {
   requested_date?: string;
   stock_decremented?: boolean;
   invoice_no?: string;
+  stripe_payment_intent_id?: string;
   items: DeskOrderItem[];
 };
 

@@ -79,7 +79,12 @@ async function main() {
     clearAllProducts,
     seedProducts,
   } = await import("../lib/catalog");
-  const { stripeConfigured, stripeClientFacing } = await import("../lib/stripe");
+  const {
+    stripeConfigured,
+    stripeClientFacing,
+    orderAmountCents,
+    parsePaymentIntentOrderId,
+  } = await import("../lib/stripe");
 
   resetDbForTests();
   resetDeskForTests();
@@ -94,6 +99,39 @@ async function main() {
 
   assert.equal(stripeConfigured(), false);
   assert.equal(stripeClientFacing(), false);
+  assert.equal(orderAmountCents(66), 6600);
+  assert.equal(orderAmountCents(81.5), 8150);
+  assert.equal(orderAmountCents(0), 0);
+  assert.equal(parsePaymentIntentOrderId({}), 0);
+  assert.equal(parsePaymentIntentOrderId({ orderId: "12" }), 12);
+  assert.equal(parsePaymentIntentOrderId({ orderId: -1 }), 0);
+
+  // payment-intent route validation without live Stripe keys
+  {
+    const { POST } = await import("../app/api/stripe/payment-intent/route");
+    const missing = await POST(
+      new Request("http://localhost/api/stripe/payment-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+    );
+    assert.equal(missing.status, 400);
+    const missingBody = await missing.json();
+    assert.match(String(missingBody.error || ""), /not configured|orderId/i);
+
+    // still not configured even with orderId
+    const noKey = await POST(
+      new Request("http://localhost/api/stripe/payment-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: 1 }),
+      })
+    );
+    assert.equal(noKey.status, 400);
+    const noKeyBody = await noKey.json();
+    assert.match(String(noKeyBody.error || ""), /not configured/i);
+  }
 
   const quoted = await quoteCart([{ sku: "SQ0179319", qty: 3 }], "delivery", false);
   assert.equal(quoted.totals.total, 81);

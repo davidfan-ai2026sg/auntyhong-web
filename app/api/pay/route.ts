@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     if (body.kind === "card") {
       if (process.env.STRIPE_SECRET_KEY) {
         return NextResponse.json(
-          { error: "Stripe Checkout is not wired in this demo. Use PayNow instead." },
+          { error: "Use the card form on this page, or PayNow demo." },
           { status: 400 }
         );
       }
