@@ -37,10 +37,10 @@ export default async function CustomerInvoicePage({
           DEMO — not a tax invoice
         </p>
       ) : null}
-      <p className="kicker">Aunty Hong</p>
+      <p className="kicker">Uncle Lan</p>
       <h1 className="display mt-1 text-4xl">{inv}</h1>
       <p className="mt-2 text-sm text-cocoa/70">
-        1005 Aljunied Ave 5 #01-42, Singapore 389886 · +65 9638 1788
+        Uncle Lan Kitchen (demo) · 88 Demo Lane #01-01, Singapore 123456 · +65 8000 0000
       </p>
       <p className="mt-4 text-sm">
         {order.customer_name} · Order {order.order_no} · {formatSgd(order.total)}

@@ -9,7 +9,7 @@ export function PayRecovery({
 }) {
   return (
     <div className="mx-auto max-w-xl px-5 py-14">
-      <p className="kicker">Aunty Hong</p>
+      <p className="kicker">Uncle Lan</p>
       <h1 className="display mt-2 text-5xl">{title}</h1>
       <p className="mt-4 text-cocoa/75">{detail}</p>
       <div className="mt-8 flex flex-wrap gap-6 text-sm">

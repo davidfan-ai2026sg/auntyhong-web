@@ -18,8 +18,8 @@ export function Header({ cartCount }: { cartCount: number }) {
     <header className="sticky top-0 z-40 bg-cream/90 backdrop-blur border-b border-sand">
       <div className="mx-auto max-w-6xl px-5 py-4 flex items-center justify-between gap-4">
         <Link href="/" className="flex flex-col leading-none" onClick={() => setOpen(false)}>
-          <span className="kicker">Est. Aljunied</span>
-          <span className="display text-3xl text-cocoa">Aunty Hong</span>
+          <span className="kicker">Demo kitchen</span>
+          <span className="display text-3xl text-cocoa">Uncle Lan</span>
         </Link>
         <nav className="hidden md:flex items-center gap-7 text-sm">
           {links.map((l) => (

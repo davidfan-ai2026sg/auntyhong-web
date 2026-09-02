@@ -31,14 +31,14 @@ export default async function AdminInvoicePage({
       ) : null}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="kicker">Aunty Hong</p>
+          <p className="kicker">Uncle Lan</p>
           <h1 className="display mt-1 text-4xl">Invoice</h1>
           <p className="mt-2 text-sm text-cocoa/70">
-            1005 Aljunied Ave 5 #01-42
+            88 Demo Lane #01-01
             <br />
-            Singapore 389886
+            Singapore 123456
             <br />
-            +65 9638 1788
+            +65 8000 0000 (demo)
           </p>
           {settings.uen ? <p className="mt-2 text-xs">UEN: {settings.uen}</p> : null}
           {settings.gst_reg ? <p className="text-xs">GST: {settings.gst_reg}</p> : null}

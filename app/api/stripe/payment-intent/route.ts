@@ -78,7 +78,7 @@ export async function POST(req: Request) {
         order_no: order.order_no,
         paynow_ref: order.paynow_ref,
       },
-      description: `Aunty Hong order ${order.order_no}`,
+      description: `Uncle Lan order ${order.order_no}`,
     });
 
     if (!intent.client_secret) {

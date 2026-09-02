@@ -2,7 +2,7 @@
   "name": "auntyhong-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Aunty Hong design demo storefront (not the live Squarespace shop)",
+  "description": "Uncle Lan design demo storefront (repo id auntyhong-web; not a live shop)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

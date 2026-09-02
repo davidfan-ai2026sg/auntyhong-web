@@ -9,7 +9,7 @@ export default function PoliciesPage() {
         <p>Currency SGD. Minimum online order S$50.</p>
         <p>Delivery under S$120 is S$15. Free from S$120. Optional 3-hour slot +S$40.</p>
         <p>Sentosa and Changi Airport are excluded. All sales are final.</p>
-        <p>This website is a design demo. It does not take live payment and does not replace auntyhong.sg.</p>
+        <p>This website is a design demo for Uncle Lan Kitchen. It does not take live payment and is not a production shop.</p>
       </div>
     </div>
   );

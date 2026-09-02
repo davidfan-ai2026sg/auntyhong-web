@@ -28,7 +28,7 @@ export function mailFromAddress() {
     runtimeEnv("MAIL_FROM") ||
     runtimeEnv("RESEND_FROM") ||
     runtimeEnv("SMTP_FROM") ||
-    "Aunty Hong Demo <onboarding@resend.dev>"
+    "Uncle Lan Demo <onboarding@resend.dev>"
   );
 }
 
@@ -60,7 +60,7 @@ export function buildOrderConfirmationEmail(order: OrderWithItems) {
   const invoiceUrl = `${base}/invoice/${encodeURIComponent(order.order_no)}${invoiceQuery(order)}`;
   const fulfilment =
     order.delivery_kind === "collect"
-      ? `Collect at Aljunied kitchen${order.requested_date ? ` · ${order.requested_date}` : ""}`
+      ? `Collect at Uncle Lan kitchen (demo)${order.requested_date ? ` · ${order.requested_date}` : ""}`
       : `Delivery${order.address ? `: ${order.address}` : ""}${
           order.requested_date ? ` · ${order.requested_date}` : ""
         }${order.express_slot ? " · Express slot" : ""}`;
@@ -85,11 +85,11 @@ export function buildOrderConfirmationEmail(order: OrderWithItems) {
         }</td><td style="text-align:right;">−${escapeHtml(formatSgd(Number(order.discount)))}</td></tr>`
       : "";
 
-  const subject = `Order confirmation ${order.order_no} — Aunty Hong`;
+  const subject = `Order confirmation ${order.order_no} — Uncle Lan`;
   const html = `<!DOCTYPE html>
 <html><body style="font-family:Georgia,serif;color:#2A1B14;background:#FBF6EE;padding:24px;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e8dcc8;padding:28px;">
-    <p style="letter-spacing:0.12em;text-transform:uppercase;color:#b8963e;font-size:12px;margin:0;">Aunty Hong</p>
+    <p style="letter-spacing:0.12em;text-transform:uppercase;color:#b8963e;font-size:12px;margin:0;">Uncle Lan</p>
     <h1 style="font-size:28px;margin:8px 0 4px;">Order confirmed</h1>
     <p style="margin:0 0 16px;color:#7a6555;">Thank you, ${escapeHtml(order.customer_name)}. Your kitchen order is recorded.</p>
     <p style="margin:0 0 4px;"><strong>Order</strong> ${escapeHtml(order.order_no)}</p>
@@ -116,7 +116,7 @@ export function buildOrderConfirmationEmail(order: OrderWithItems) {
       <a href="${escapeHtml(invoiceUrl)}" style="display:inline-block;background:#2A1B14;color:#FBF6EE;padding:10px 16px;text-decoration:none;">View invoice</a>
     </p>
     <p style="font-size:12px;color:#7a6555;margin-top:20px;">
-      Demo storefront — not the live auntyhong.sg shop. Kitchen: 1005 Aljunied Ave 5 #01-42, Singapore 389886 · +65 9638 1788.
+      Demo storefront — Uncle Lan Kitchen. 88 Demo Lane #01-01, Singapore 123456 · +65 8000 0000 (demo).
     </p>
   </div>
 </body></html>`;

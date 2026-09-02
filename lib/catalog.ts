@@ -40,22 +40,25 @@ export type ProductWrite = Partial<Product> & {
   options?: AdditionalField[];
 };
 
-const IMAGE_OVERRIDES: Record<string, string> = {
-  "shrimp-fries":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1609214836429-1JMGD3QPI6YG0STATGX3/1.+Shrimp+Fries.png",
-  "tom-yum-goong-cashews":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1665729590039-MTTGORAKZP5T1MZAY5EM/_5D_7256-Edit.jpg",
-  "the-prosperity-mix":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1665979008283-IMZCX13TDQHB1XXJ7S7V/_5D_7496-Edit.jpg",
-  "family-pack-organic-handmade-noodles":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/47525652-2f05-4799-8110-cb71093e3d5c/Aunty+Hong%27s+Organic+Handmade+Noodles+-+Family+Pack+%28Original%29.jpg",
-  "lucky-duo-cookies-giftset":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1701063546598-2YJSVOAMNWCQL6ECMVLD/Lucky+Duo_Low+Res.jpg",
-};
-
 const images = imagesJson as { products: Record<string, string>; named: Record<string, string> };
 
 export const NAMED_IMAGES = images.named;
+
+/** Local Uncle Lan product cards (no Squarespace / trademark packaging). */
+const IMAGE_OVERRIDES: Record<string, string> = {};
+
+function isLegacyCdnImage(url: string) {
+  return /squarespace-cdn\.com|aunty\+?hong|auntie\+?hong/i.test(url || "");
+}
+
+/** Map known CDN / trademarked packaging URLs onto local /products assets. */
+export function localizeProductImage(slug: string, image: string) {
+  const local = images.products[slug] || IMAGE_OVERRIDES[slug];
+  if (local && (!image || isLegacyCdnImage(image))) return local;
+  if (image && image.startsWith("/products/")) return image;
+  if (local) return local;
+  return image || fallbackProductImage();
+}
 
 function stripHtml(html: string) {
   return html
@@ -108,7 +111,7 @@ export function seedProducts(): Product[] {
       };
     });
     const cats = raw.categories.map(niceCategory).filter(Boolean);
-    const image = IMAGE_OVERRIDES[slug] || images.products[slug] || fallbackProductImage();
+    const image = localizeProductImage(slug, IMAGE_OVERRIDES[slug] || images.products[slug] || "");
     return {
       slug,
       title: raw.title,
@@ -252,7 +255,7 @@ export function recomputeProduct(p: Product): Product {
     sku: p.sku || variants[0]?.sku || "",
     description: p.description || "",
     categories: p.categories?.length ? p.categories : ["Shop"],
-    image: p.image || fallbackProductImage(),
+    image: localizeProductImage(p.slug, p.image || ""),
     soldOut: soldOutFlag || variants.every((v) => !v.inStock),
     variants,
     fromPrice,

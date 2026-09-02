@@ -20,8 +20,8 @@ export default function AdminLogin() {
   }
   return (
     <div className="mx-auto max-w-sm px-5 py-24">
-      <p className="kicker">Kitchen desk</p>
-      <h1 className="display mt-2 text-4xl">Sign in</h1>
+      <p className="kicker">Uncle Lan kitchen</p>
+      <h1 className="display mt-2 text-4xl">Kitchen sign in</h1>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
           type="password"

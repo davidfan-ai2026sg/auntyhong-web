@@ -172,10 +172,29 @@ async function withLock<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function seedStore(partial?: Partial<DeskStore> | null): Promise<DeskStore> {
-  const { seedProducts } = await import("./catalog");
+  const { seedProducts, localizeProductImage } = await import("./catalog");
   const { defaultSettings } = await import("./db");
   // Explicit empty array is allowed (kitchen cleared catalogue). Only seed when missing.
-  const products = Array.isArray(partial?.products) ? partial.products : seedProducts();
+  let products = Array.isArray(partial?.products) ? partial.products : seedProducts();
+  products = products.map((p) => ({
+    ...p,
+    image: localizeProductImage(p.slug, p.image || ""),
+    description: String(p.description || "")
+      .replace(/Aunty Hong'?s/gi, "Uncle Lan's")
+      .replace(/Aunty Hong/gi, "Uncle Lan")
+      .replace(/Auntie Hong/gi, "Uncle Lan"),
+    title: String(p.title || "")
+      .replace(/Aunty Hong'?s/gi, "Uncle Lan's")
+      .replace(/Aunty Hong/gi, "Uncle Lan")
+      .replace(/Auntie Hong/gi, "Uncle Lan"),
+    variants: (p.variants || []).map((v) => ({
+      ...v,
+      label: String(v.label || "")
+        .replace(/Aunty Hong'?s/gi, "Uncle Lan's")
+        .replace(/Aunty Hong/gi, "Uncle Lan")
+        .replace(/Auntie Hong/gi, "Uncle Lan"),
+    })),
+  }));
   const settings = partial?.settings && typeof partial.settings === "object"
     ? { ...defaultSettings(), ...partial.settings, id: 1 }
     : defaultSettings();
@@ -320,9 +339,18 @@ async function persistStore(store: DeskStore) {
 async function loadFresh(): Promise<DeskStore> {
   const raw = await readFromBackend();
   const store = await seedStore(raw);
-  // First boot only: no desk file yet → persist seeded catalogue.
-  if (!raw) {
-    store.version = Math.max(store.version, 1);
+  const legacyBrand = Array.isArray(raw?.products)
+    ? raw.products.some(
+        (p) =>
+          /squarespace-cdn\.com/i.test(String(p.image || "")) ||
+          /aunty\s*hong|auntie\s*hong|阿嫲/i.test(
+            `${p.title || ""} ${p.description || ""} ${(p.variants || []).map((v) => v.label).join(" ")}`
+          )
+      )
+    : false;
+  // First boot, or one-time rewrite away from trademarked CDN packaging / Aunty Hong copy.
+  if (!raw || legacyBrand) {
+    store.version = Math.max(Number(store.version) || 0, 1) + (legacyBrand ? 1 : 0);
     await persistStore(store);
   }
   setMemory(store);

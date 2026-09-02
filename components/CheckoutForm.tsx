@@ -158,7 +158,7 @@ export function CheckoutForm({
               setExpress(false);
             }}
           />{" "}
-          Collect at Aljunied kitchen
+          Collect at Uncle Lan kitchen (demo)
         </label>
       </fieldset>
       {kind === "delivery" ? (
@@ -173,7 +173,7 @@ export function CheckoutForm({
         </label>
       ) : (
         <p className="text-sm text-cocoa/70">
-          Collect at 1005 Aljunied Ave 5 #01-42, Singapore 389886. No walk-in — we will confirm the pickup time.
+          Collect at 88 Demo Lane #01-01, Singapore 123456. No walk-in — we will confirm the pickup time.
         </p>
       )}
       {kind === "delivery" ? (

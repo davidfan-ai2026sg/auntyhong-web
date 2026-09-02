@@ -103,9 +103,9 @@ export default async function OrderPage({
         </a>
       </p>
       <p className="mt-6 text-sm text-cocoa/60">
-        Kitchen: 1005 Aljunied Ave 5 #01-42.{" "}
-        <a href="https://wa.me/6596381788" className="border-b border-gold">
-          WhatsApp +65 9638 1788
+        Kitchen: 88 Demo Lane #01-01 (demo).{" "}
+        <a href="https://wa.me/6580000000" className="border-b border-gold">
+          WhatsApp +65 8000 0000
         </a>
         .
       </p>

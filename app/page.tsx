@@ -18,12 +18,12 @@ export default async function HomePage() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-cocoa via-cocoa/50 to-transparent" />
         <div className="relative mx-auto max-w-6xl px-5 py-28 md:py-40">
-          <p className="kicker text-gold">A kitchen in Aljunied</p>
+          <p className="kicker text-gold">A demo kitchen in Singapore</p>
           <h1 className="display mt-4 max-w-3xl text-6xl md:text-8xl leading-[0.9]">
             Snacks that taste like home.
           </h1>
           <p className="mt-6 max-w-md text-parchment/80">
-            Keropok, cookies, tea, and CNY gift boxes — packed the way Aunty Hong still packs them.
+            Keropok, cookies, tea, and CNY gift boxes — packed the Uncle Lan way.
           </p>
           <div className="mt-10 flex gap-4">
             <Link href="/store" className="bg-cinnabar text-parchment px-6 py-3 text-sm tracking-wide">
@@ -71,7 +71,7 @@ export default async function HomePage() {
             <p className="kicker text-gold">The house</p>
             <h2 className="display mt-2 text-5xl">From a kitchen, not a warehouse.</h2>
             <p className="mt-5 text-parchment/75 leading-relaxed">
-              Aunty Hong still fries keropok and packs gift boxes at 1005 Aljunied Ave 5. There is no
+              Uncle Lan still fries keropok and packs gift boxes at 88 Demo Lane. There is no
               walk-in counter. Orders go out by delivery or collection, in SGD, with a S$50 minimum.
             </p>
             <Link href="/our-story" className="mt-8 inline-block border-b border-gold pb-1 text-sm">

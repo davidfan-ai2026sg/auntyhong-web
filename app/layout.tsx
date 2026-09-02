@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
-    default: "Aunty Hong — Design Demo",
-    template: "%s · Aunty Hong Demo",
+    default: "Uncle Lan — Design Demo",
+    template: "%s · Uncle Lan Demo",
   },
   description:
-    "A design demo of Aunty Hong, a Singapore CNY snack and corporate gifting house. Not the live store.",
+    "A design demo of Uncle Lan, a Singapore CNY snack and corporate gifting kitchen. Not a live store.",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +21,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <head>
+        <link rel="icon" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
