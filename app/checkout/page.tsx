@@ -18,27 +18,10 @@ export default async function CheckoutPage() {
       </div>
     );
   }
+
+  let quote: Awaited<ReturnType<typeof quoteCart>>;
   try {
-    const quote = await quoteCart(lines, "delivery", false);
-    if (quote.totals.belowMinimum) {
-      redirect("/cart");
-    }
-    return (
-      <div className="mx-auto max-w-3xl px-5 py-14">
-        <p className="kicker">Place order</p>
-        <h1 className="display mt-2 text-6xl">Checkout</h1>
-        <p className="mt-4 text-cocoa/70 text-sm">
-          Subtotal {formatSgd(quote.totals.subtotal)}. Delivery under S$120 is S$15; free at S$120.
-          Optional 3-hour slot +S$40. Sentosa and Changi Airport excluded.
-        </p>
-        <CheckoutForm
-          subtotal={quote.totals.subtotal}
-          deliveryFee={quote.settings.delivery_fee}
-          freeDeliveryAt={quote.totals.freeDeliveryAt}
-          expressFee={quote.settings.express_fee}
-        />
-      </div>
-    );
+    quote = await quoteCart(lines, "delivery", false);
   } catch {
     return (
       <div className="mx-auto max-w-xl px-5 py-20">
@@ -53,4 +36,26 @@ export default async function CheckoutPage() {
       </div>
     );
   }
+
+  // redirect() throws — keep it outside try/catch so Next can navigate.
+  if (quote.totals.belowMinimum) {
+    redirect("/cart");
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl px-5 py-14">
+      <p className="kicker">Place order</p>
+      <h1 className="display mt-2 text-6xl">Checkout</h1>
+      <p className="mt-4 text-cocoa/70 text-sm">
+        Subtotal {formatSgd(quote.totals.subtotal)}. Delivery under S$120 is S$15; free at S$120.
+        Optional 3-hour slot +S$40. Sentosa and Changi Airport excluded.
+      </p>
+      <CheckoutForm
+        subtotal={quote.totals.subtotal}
+        deliveryFee={quote.settings.delivery_fee}
+        freeDeliveryAt={quote.totals.freeDeliveryAt}
+        expressFee={quote.settings.express_fee}
+      />
+    </div>
+  );
 }
