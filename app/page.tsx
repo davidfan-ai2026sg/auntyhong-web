@@ -17,12 +17,12 @@ export default async function HomePage() {
           className="absolute inset-0 h-full w-full object-cover opacity-55"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-cocoa via-cocoa/50 to-transparent" />
-        <div className="relative mx-auto max-w-6xl px-5 py-28 md:py-40">
+        <div className="relative z-10 mx-auto max-w-6xl px-5 py-28 md:py-40">
           <p className="kicker text-gold">A demo kitchen in Singapore</p>
-          <h1 className="display mt-4 max-w-3xl text-6xl md:text-8xl leading-[0.9]">
+          <h1 className="display mt-4 mb-2 max-w-3xl text-5xl md:text-7xl leading-[1.1]">
             Snacks that taste like home.
           </h1>
-          <p className="mt-6 max-w-md text-parchment/80">
+          <p className="mt-8 max-w-md text-parchment/80">
             Keropok, cookies, tea, and CNY gift boxes — packed the Uncle Lan way.
           </p>
           <div className="mt-10 flex gap-4">

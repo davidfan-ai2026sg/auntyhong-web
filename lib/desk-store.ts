@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { unstable_noStore as noStore } from "next/cache";
+import imagesJson from "@/data/images.json";
 import type { Product } from "./catalog";
 import type { Enquiry, Settings } from "./db";
 import type { Voucher } from "./vouchers";
@@ -171,14 +172,26 @@ async function withLock<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+function resolveProductCdnImage(slug: string, image: string): string {
+  const images = imagesJson as { products: Record<string, string>; named: Record<string, string> };
+  const cdn = images.products[slug] || images.named[slug] || "";
+  const img = String(image || "");
+  // Restore original Squarespace photos when missing, local /products placeholders, or map hit.
+  if (cdn && (!img || img.startsWith("/products/") || (img.startsWith("/") && !img.startsWith("//")))) {
+    return cdn;
+  }
+  if (cdn) return cdn;
+  return img || images.named["cny-banner"] || "";
+}
+
 async function seedStore(partial?: Partial<DeskStore> | null): Promise<DeskStore> {
-  const { seedProducts, localizeProductImage } = await import("./catalog");
+  const { seedProducts } = await import("./catalog");
   const { defaultSettings } = await import("./db");
   // Explicit empty array is allowed (kitchen cleared catalogue). Only seed when missing.
   let products = Array.isArray(partial?.products) ? partial.products : seedProducts();
   products = products.map((p) => ({
     ...p,
-    image: localizeProductImage(p.slug, p.image || ""),
+    image: resolveProductCdnImage(p.slug, p.image || ""),
     description: String(p.description || "")
       .replace(/Aunty Hong'?s/gi, "Uncle Lan's")
       .replace(/Aunty Hong/gi, "Uncle Lan")
@@ -339,18 +352,23 @@ async function persistStore(store: DeskStore) {
 async function loadFresh(): Promise<DeskStore> {
   const raw = await readFromBackend();
   const store = await seedStore(raw);
-  const legacyBrand = Array.isArray(raw?.products)
-    ? raw.products.some(
-        (p) =>
-          /squarespace-cdn\.com/i.test(String(p.image || "")) ||
-          /aunty\s*hong|auntie\s*hong|阿嫲/i.test(
-            `${p.title || ""} ${p.description || ""} ${(p.variants || []).map((v) => v.label).join(" ")}`
-          )
+  const needsLocalImageRestore = Array.isArray(raw?.products)
+    ? raw.products.some((p) => {
+        const img = String(p.image || "");
+        return !img || img.startsWith("/products/") || (img.startsWith("/") && !img.startsWith("//"));
+      })
+    : false;
+  const needsBrandRewrite = Array.isArray(raw?.products)
+    ? raw.products.some((p) =>
+        /aunty\s*hong|auntie\s*hong|阿嫲/i.test(
+          `${p.title || ""} ${p.description || ""} ${(p.variants || []).map((v) => v.label).join(" ")}`
+        )
       )
     : false;
-  // First boot, or one-time rewrite away from trademarked CDN packaging / Aunty Hong copy.
-  if (!raw || legacyBrand) {
-    store.version = Math.max(Number(store.version) || 0, 1) + (legacyBrand ? 1 : 0);
+  // First boot, restore CDN photos from /products placeholders, or Uncle Lan rename pass.
+  if (!raw || needsLocalImageRestore || needsBrandRewrite) {
+    const bump = needsLocalImageRestore || needsBrandRewrite ? 1 : 0;
+    store.version = Math.max(Number(store.version) || 0, 1) + bump;
     await persistStore(store);
   }
   setMemory(store);
