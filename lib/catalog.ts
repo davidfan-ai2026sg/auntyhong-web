@@ -168,9 +168,9 @@ export async function categories() {
 
 export async function featured() {
   const order = [
-    "shrimp-fries",
-    "bundle-of-joy-cny-gift-set",
     "lucky-duo-cookies-giftset",
+    "bundle-of-joy-cny-gift-set",
+    "spring-blossom-box",
     "the-prosperity-mix",
     "osmanthus-long-jing-tea",
     "melty-kuih-bangkit",
