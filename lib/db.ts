@@ -121,6 +121,12 @@ function ensureOrderExtraColumns(db: BetterSqlite3.Database) {
   if (!cols.includes("discount")) {
     db.exec("ALTER TABLE orders ADD COLUMN discount REAL NOT NULL DEFAULT 0");
   }
+  if (!cols.includes("confirmation_email_sent")) {
+    db.exec("ALTER TABLE orders ADD COLUMN confirmation_email_sent INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!cols.includes("confirmation_email_error")) {
+    db.exec("ALTER TABLE orders ADD COLUMN confirmation_email_error TEXT NOT NULL DEFAULT ''");
+  }
 }
 
 function ordersUseSqlite() {
@@ -226,6 +232,8 @@ export type OrderRow = {
   stripe_payment_intent_id?: string;
   voucher_code?: string;
   discount?: number;
+  confirmation_email_sent?: boolean;
+  confirmation_email_error?: string;
 };
 
 export type OrderItemRow = {
@@ -386,6 +394,8 @@ function getOrderFromSqlite(id: number): OrderWithItems | undefined {
     stripe_payment_intent_id: raw.stripe_payment_intent_id || undefined,
     voucher_code: raw.voucher_code || undefined,
     discount: Number(raw.discount) || 0,
+    confirmation_email_sent: Boolean(raw.confirmation_email_sent),
+    confirmation_email_error: raw.confirmation_email_error || undefined,
     items,
   };
 }
@@ -703,12 +713,46 @@ export async function setOrderStatus(id: number, status: OrderStatus, paymentMet
     );
     next = { ...next, stock_decremented: true };
   }
+  // Confirmation email once when payment is confirmed (demo PayNow or Stripe).
+  // Skips if already sent/skipped; may retry once if a prior attempt failed (sent=false).
+  if (isPaidLike(status) && !order.confirmation_email_sent) {
+    try {
+      const { sendOrderConfirmation } = await import("./mail");
+      const mail = await sendOrderConfirmation(next);
+      if (mail.ok) {
+        next = {
+          ...next,
+          confirmation_email_sent: true,
+          confirmation_email_error: undefined,
+        };
+      } else if ("skipped" in mail && mail.skipped) {
+        next = {
+          ...next,
+          confirmation_email_sent: true,
+          confirmation_email_error: undefined,
+        };
+      } else {
+        const err = "error" in mail ? mail.error : "Confirmation email could not be sent";
+        next = {
+          ...next,
+          confirmation_email_sent: false,
+          confirmation_email_error: err,
+        };
+      }
+    } catch (e) {
+      next = {
+        ...next,
+        confirmation_email_sent: false,
+        confirmation_email_error: e instanceof Error ? e.message : "Mail failed",
+      };
+    }
+  }
   await persistOrder(next);
   if (ordersUseSqlite()) {
     try {
       getDb()
         .prepare(
-          "UPDATE orders SET status = ?, payment_method = COALESCE(?, payment_method), updated_at = ?, stock_decremented = ?, invoice_no = COALESCE(NULLIF(invoice_no, ''), ?), requested_date = COALESCE(NULLIF(requested_date, ''), ?) WHERE id = ?"
+          "UPDATE orders SET status = ?, payment_method = COALESCE(?, payment_method), updated_at = ?, stock_decremented = ?, invoice_no = COALESCE(NULLIF(invoice_no, ''), ?), requested_date = COALESCE(NULLIF(requested_date, ''), ?), confirmation_email_sent = ?, confirmation_email_error = ? WHERE id = ?"
         )
         .run(
           next.status,
@@ -717,6 +761,8 @@ export async function setOrderStatus(id: number, status: OrderStatus, paymentMet
           next.stock_decremented ? 1 : 0,
           next.invoice_no || "",
           next.requested_date || "",
+          next.confirmation_email_sent ? 1 : 0,
+          next.confirmation_email_error || "",
           id
         );
     } catch {

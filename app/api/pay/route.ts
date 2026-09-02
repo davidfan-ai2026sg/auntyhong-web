@@ -6,7 +6,13 @@ export const dynamic = "force-dynamic";
 
 async function okWithOrders(updated: Awaited<ReturnType<typeof setOrderStatus>>) {
   const stored = updated ? await persistOrder(updated) : await readStoredOrders();
-  const res = NextResponse.json({ ok: true });
+  const email =
+    updated && updated.confirmation_email_error
+      ? { sent: false as const, error: updated.confirmation_email_error }
+      : updated && updated.confirmation_email_sent
+        ? { sent: true as const }
+        : { sent: false as const, error: "Confirmation email could not be sent" };
+  const res = NextResponse.json({ ok: true, email });
   res.cookies.set(ORDER_COOKIE, JSON.stringify(stored), ORDER_COOKIE_OPTS);
   return res;
 }

@@ -10,3 +10,5 @@ Default admin password: auntyhong-demo
 
 Demo voucher: WELCOME10 (10% off).
 Minimum online order: S$50 (editable in kitchen settings).
+
+After payment, a confirmation email is sent when RESEND_API_KEY or SMTP_HOST is set.

@@ -590,6 +590,48 @@ async function main() {
     /Invalid voucher/i
   );
 
+    // --- Confirmation email on payment (no mailer → error flag, payment still ok) ---
+  const { buildOrderConfirmationEmail, sendOrderConfirmation } = await import("../lib/mail");
+  const built = buildOrderConfirmationEmail(voucherOrder);
+  assert.match(built.subject, /Order confirmation/);
+  assert.match(built.subject, new RegExp(voucherOrder.order_no));
+  assert.match(built.html, /Subtotal/);
+  assert.match(built.html, /WELCOME10|Discount/);
+  assert.match(built.html, /invoice/i);
+  assert.match(built.text, /Total/);
+
+  const paidMail = await setOrderStatus(voucherOrder.id, "payment_submitted", "paynow");
+  assert.equal(paidMail?.status, "payment_submitted");
+  assert.equal(paidMail?.confirmation_email_sent, false);
+  assert.match(String(paidMail?.confirmation_email_error || ""), /Mail not configured|RESEND|SMTP/i);
+  // Second transition must not clear / re-attempt when already attempted with error… 
+  // Actually flag is false so paid transition may retry — that's OK. Mark sent manually via paid:
+  const stripePaid = await markOrderPaid(voucherOrder.id, "stripe");
+  assert.equal(stripePaid?.status, "paid");
+  // Still no mailer — error remains or refreshed
+  assert.ok(stripePaid?.confirmation_email_error || stripePaid?.confirmation_email_sent === false);
+
+  const noEmailOrder = await createOrder({
+    customer_name: "No Email Guest",
+    customer_phone: "+65 9666 6666",
+    customer_email: "",
+    delivery_kind: "collect",
+    address: "",
+    notes: "",
+    express_slot: false,
+    lines: [{ sku: "SQ0179319", qty: 3 }],
+  });
+  const noEmailPaid = await setOrderStatus(noEmailOrder.id, "payment_submitted", "paynow");
+  assert.equal(noEmailPaid?.confirmation_email_sent, true);
+  assert.equal(noEmailPaid?.confirmation_email_error, undefined);
+  const skip = await sendOrderConfirmation(noEmailOrder);
+  assert.equal(skip.ok, false);
+  assert.equal("skipped" in skip && skip.skipped, true);
+
+  // Refresh / re-set status must not duplicate-send once marked sent
+  const paidAgain = await setOrderStatus(noEmailOrder.id, "paid", "paynow");
+  assert.equal(paidAgain?.confirmation_email_sent, true);
+
     const settings = await updateSettings({ min_order: 90, uen: "", gst_reg: "" });
   assert.equal(settings.min_order, 90);
   assert.equal(settings.uen, "");

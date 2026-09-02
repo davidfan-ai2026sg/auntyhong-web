@@ -56,9 +56,25 @@ export default async function CustomerInvoicePage({
           </li>
         ))}
       </ul>
-      <div className="mt-4 flex justify-between text-sm font-medium">
-        <span>Total</span>
-        <span>{formatSgd(order.total)}</span>
+      <div className="mt-4 space-y-1 text-sm">
+        <div className="flex justify-between">
+          <span>Subtotal</span>
+          <span>{formatSgd(order.subtotal)}</span>
+        </div>
+        {order.discount ? (
+          <div className="flex justify-between">
+            <span>Discount{order.voucher_code ? ` (${order.voucher_code})` : ""}</span>
+            <span>−{formatSgd(order.discount)}</span>
+          </div>
+        ) : null}
+        <div className="flex justify-between">
+          <span>Delivery</span>
+          <span>{formatSgd(order.delivery_fee)}</span>
+        </div>
+        <div className="flex justify-between font-medium">
+          <span>Total</span>
+          <span>{formatSgd(order.total)}</span>
+        </div>
       </div>
       <p className="mt-2 text-xs text-cocoa/50">PayNow ref {order.paynow_ref}</p>
       <div className="mt-8 print:hidden">

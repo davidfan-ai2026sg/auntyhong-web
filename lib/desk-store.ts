@@ -40,6 +40,8 @@ export type DeskOrder = {
   stripe_payment_intent_id?: string;
   voucher_code?: string;
   discount?: number;
+  confirmation_email_sent?: boolean;
+  confirmation_email_error?: string;
   items: DeskOrderItem[];
 };
 

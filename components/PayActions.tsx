@@ -32,7 +32,14 @@ export function PayActions({
         setMsg((data as { error?: string }).error || "Failed");
         return;
       }
-      window.location.href = `/order/${orderId}`;
+      const email = (data as { email?: { sent?: boolean; error?: string } }).email;
+      const qs =
+        email && email.sent === false && email.error
+          ? "?mail=fail"
+          : email && email.sent
+            ? "?mail=ok"
+            : "";
+      window.location.href = `/order/${orderId}${qs}`;
     } catch {
       setMsg("Could not update payment. Please try again.");
     } finally {
