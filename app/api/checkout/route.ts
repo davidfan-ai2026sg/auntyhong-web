@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       express_slot: deliveryKind === "delivery" && Boolean(body.express_slot),
       lines,
       requested_date: String(body.requested_date || "").trim() || undefined,
+      voucher_code: String(body.voucher_code || "").trim() || undefined,
     });
     const stored = await persistOrder(order);
     await writeCart([]);

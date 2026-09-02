@@ -115,6 +115,12 @@ function ensureOrderExtraColumns(db: BetterSqlite3.Database) {
   if (!cols.includes("stripe_payment_intent_id")) {
     db.exec("ALTER TABLE orders ADD COLUMN stripe_payment_intent_id TEXT NOT NULL DEFAULT ''");
   }
+  if (!cols.includes("voucher_code")) {
+    db.exec("ALTER TABLE orders ADD COLUMN voucher_code TEXT NOT NULL DEFAULT ''");
+  }
+  if (!cols.includes("discount")) {
+    db.exec("ALTER TABLE orders ADD COLUMN discount REAL NOT NULL DEFAULT 0");
+  }
 }
 
 function ordersUseSqlite() {
@@ -218,6 +224,8 @@ export type OrderRow = {
   stock_decremented?: boolean;
   invoice_no?: string;
   stripe_payment_intent_id?: string;
+  voucher_code?: string;
+  discount?: number;
 };
 
 export type OrderItemRow = {
@@ -258,7 +266,12 @@ function variantLabelForLine(base: string, options?: Record<string, string>) {
   return `${base} · ${opt}`;
 }
 
-export async function quoteCart(lines: CartLine[], deliveryKind: DeliveryKind, expressSlot = false) {
+export async function quoteCart(
+  lines: CartLine[],
+  deliveryKind: DeliveryKind,
+  expressSlot = false,
+  voucherCode?: string | null
+) {
   const settings = await getSettings();
   const products = await loadProducts();
   const items: QuotedItem[] = [];
@@ -279,6 +292,8 @@ export async function quoteCart(lines: CartLine[], deliveryKind: DeliveryKind, e
       options: line.options,
     });
   }
+  const { applyVoucherCode } = await import("./vouchers");
+  const applied = await applyVoucherCode(voucherCode, subtotal);
   const totals = computeTotals({
     subtotal,
     deliveryKind,
@@ -287,8 +302,16 @@ export async function quoteCart(lines: CartLine[], deliveryKind: DeliveryKind, e
     deliveryFeeUnder: settings.delivery_fee,
     freeDeliveryAt: settings.free_delivery_at,
     expressFee: settings.express_fee,
+    discount: applied?.discount ?? 0,
   });
-  return { items, totals, settings };
+  return {
+    items,
+    totals,
+    settings,
+    voucher: applied
+      ? { code: applied.code, discount: applied.discount }
+      : null,
+  };
 }
 
 export const ORDER_COOKIE = "ah_orders";
@@ -361,6 +384,8 @@ function getOrderFromSqlite(id: number): OrderWithItems | undefined {
     stock_decremented: Boolean(raw.stock_decremented),
     invoice_no: raw.invoice_no || `INV-${raw.order_no}`,
     stripe_payment_intent_id: raw.stripe_payment_intent_id || undefined,
+    voucher_code: raw.voucher_code || undefined,
+    discount: Number(raw.discount) || 0,
     items,
   };
 }
@@ -501,8 +526,14 @@ export async function createOrder(input: {
   express_slot: boolean;
   lines: CartLine[];
   requested_date?: string;
+  voucher_code?: string;
 }): Promise<OrderWithItems> {
-  const { items, totals } = await quoteCart(input.lines, input.delivery_kind, input.express_slot);
+  const { items, totals, voucher } = await quoteCart(
+    input.lines,
+    input.delivery_kind,
+    input.express_slot,
+    input.voucher_code
+  );
   if (!items.length) throw new Error("Cart is empty");
   if (totals.belowMinimum) throw new Error(`Minimum order is S$${totals.minOrder.toFixed(2)}`);
   if (!input.customer_name.trim()) throw new Error("Name is required");
@@ -523,6 +554,8 @@ export async function createOrder(input: {
     subtotal: totals.subtotal,
     delivery_fee: totals.delivery,
     total: totals.total,
+    discount: totals.discount || 0,
+    voucher_code: voucher?.code || undefined,
     requested_date: requested || undefined,
   };
 
@@ -564,8 +597,8 @@ export async function createOrder(input: {
       const invoiceNo = `INV-${orderNo}`;
       const info = db
         .prepare(
-          `INSERT INTO orders (order_no, paynow_ref, customer_name, customer_phone, customer_email, delivery_kind, address, notes, express_slot, subtotal, delivery_fee, total, status, payment_method, created_at, updated_at, requested_date, stock_decremented, invoice_no)
-           VALUES (@order_no, @paynow_ref, @customer_name, @customer_phone, @customer_email, @delivery_kind, @address, @notes, @express_slot, @subtotal, @delivery_fee, @total, 'pending_payment', '', @now, @now, @requested_date, 0, @invoice_no)`
+          `INSERT INTO orders (order_no, paynow_ref, customer_name, customer_phone, customer_email, delivery_kind, address, notes, express_slot, subtotal, delivery_fee, total, status, payment_method, created_at, updated_at, requested_date, stock_decremented, invoice_no, voucher_code, discount)
+           VALUES (@order_no, @paynow_ref, @customer_name, @customer_phone, @customer_email, @delivery_kind, @address, @notes, @express_slot, @subtotal, @delivery_fee, @total, 'pending_payment', '', @now, @now, @requested_date, 0, @invoice_no, @voucher_code, @discount)`
         )
         .run({
           order_no: orderNo,
@@ -583,6 +616,8 @@ export async function createOrder(input: {
           now,
           requested_date: customer.requested_date || "",
           invoice_no: invoiceNo,
+          voucher_code: customer.voucher_code || "",
+          discount: customer.discount || 0,
         });
       const id = Number(info.lastInsertRowid);
       const ins = db.prepare(

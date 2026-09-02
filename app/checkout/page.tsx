@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { readCart } from "@/lib/cart";
 import { quoteCart } from "@/lib/db";
 import { CheckoutForm } from "@/components/CheckoutForm";
@@ -19,6 +20,9 @@ export default async function CheckoutPage() {
   }
   try {
     const quote = await quoteCart(lines, "delivery", false);
+    if (quote.totals.belowMinimum) {
+      redirect("/cart");
+    }
     return (
       <div className="mx-auto max-w-3xl px-5 py-14">
         <p className="kicker">Place order</p>
@@ -27,7 +31,12 @@ export default async function CheckoutPage() {
           Subtotal {formatSgd(quote.totals.subtotal)}. Delivery under S$120 is S$15; free at S$120.
           Optional 3-hour slot +S$40. Sentosa and Changi Airport excluded.
         </p>
-        <CheckoutForm belowMinimum={quote.totals.belowMinimum} minOrder={quote.totals.minOrder} />
+        <CheckoutForm
+          subtotal={quote.totals.subtotal}
+          deliveryFee={quote.settings.delivery_fee}
+          freeDeliveryAt={quote.totals.freeDeliveryAt}
+          expressFee={quote.settings.express_fee}
+        />
       </div>
     );
   } catch {

@@ -3,6 +3,7 @@ import path from "node:path";
 import { unstable_noStore as noStore } from "next/cache";
 import type { Product } from "./catalog";
 import type { Enquiry, Settings } from "./db";
+import type { Voucher } from "./vouchers";
 
 export type DeskOrderItem = {
   id: number;
@@ -37,6 +38,8 @@ export type DeskOrder = {
   stock_decremented?: boolean;
   invoice_no?: string;
   stripe_payment_intent_id?: string;
+  voucher_code?: string;
+  discount?: number;
   items: DeskOrderItem[];
 };
 
@@ -47,6 +50,7 @@ export type DeskStore = {
   settings: Settings;
   nextEnquiryId: number;
   orders: DeskOrder[];
+  vouchers: Voucher[];
 };
 
 export type DeskStorage = "blob" | "file" | "tmp";
@@ -177,6 +181,14 @@ async function seedStore(partial?: Partial<DeskStore> | null): Promise<DeskStore
   const maxId = enquiries.reduce((m, e) => Math.max(m, Number(e?.id) || 0), 0);
   const nextEnquiryId = Math.max(Number(partial?.nextEnquiryId) || 1, maxId + 1);
   const orders = Array.isArray(partial?.orders) ? (partial.orders as DeskOrder[]) : [];
+  // Explicit empty vouchers array is allowed. Seed demo codes only when missing.
+  let vouchers: Voucher[];
+  if (Array.isArray(partial?.vouchers)) {
+    vouchers = partial.vouchers as Voucher[];
+  } else {
+    const { seedVouchers } = await import("./vouchers");
+    vouchers = seedVouchers();
+  }
   return {
     version: Number(partial?.version) || 0,
     products,
@@ -184,6 +196,7 @@ async function seedStore(partial?: Partial<DeskStore> | null): Promise<DeskStore
     settings,
     nextEnquiryId,
     orders,
+    vouchers,
   };
 }
 
@@ -341,6 +354,7 @@ export async function mutateDeskStore(
     if (!Array.isArray(next.products)) next.products = current.products;
     if (!Array.isArray(next.enquiries)) next.enquiries = current.enquiries;
     if (!Array.isArray(next.orders)) next.orders = current.orders || [];
+    if (!Array.isArray(next.vouchers)) next.vouchers = current.vouchers || [];
     if (!next.settings) next.settings = current.settings;
     if (!next.nextEnquiryId) next.nextEnquiryId = current.nextEnquiryId;
     await persistStore(next);

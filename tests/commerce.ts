@@ -22,8 +22,25 @@ async function main() {
   });
   assert.equal(threeTins.subtotal, 66);
   assert.equal(threeTins.delivery, 15);
+  assert.equal(threeTins.discount, 0);
   assert.equal(threeTins.total, 81);
   assert.equal(threeTins.belowMinimum, false);
+
+  const withPct = computeTotals({
+    subtotal: 66,
+    deliveryKind: "delivery",
+    discount: 6.6,
+  });
+  assert.equal(withPct.discount, 6.6);
+  assert.equal(withPct.total, 74.4);
+
+  const withFixedCap = computeTotals({
+    subtotal: 22,
+    deliveryKind: "collect",
+    discount: 100,
+  });
+  assert.equal(withFixedCap.discount, 22);
+  assert.equal(withFixedCap.total, 0);
 
   const free = computeTotals({ subtotal: 120, deliveryKind: "delivery" });
   assert.equal(free.delivery, 0);
@@ -474,7 +491,106 @@ async function main() {
   const duoRollup = productionRollup([onBoard]);
   assert.ok(duoRollup.some((r) => /Melty Kuih Bangkit/.test(r.variant_label)));
 
-  const settings = await updateSettings({ min_order: 90, uen: "", gst_reg: "" });
+  // --- Below-minimum gate (createOrder) ---
+  await assert.rejects(
+    () =>
+      createOrder({
+        customer_name: "Tiny Cart",
+        customer_phone: "+65 9000 0099",
+        customer_email: "",
+        delivery_kind: "collect",
+        address: "",
+        notes: "",
+        express_slot: false,
+        lines: [{ sku: "SQ0179319", qty: 1 }],
+      }),
+    /Minimum order/i
+  );
+
+  // --- Vouchers ---
+  const {
+    listVouchers,
+    upsertVoucher,
+    applyVoucherCode,
+    setVoucherActive,
+    normalizeVoucherCode,
+  } = await import("../lib/vouchers");
+  const seededVouchers = await listVouchers();
+  assert.ok(seededVouchers.some((v) => normalizeVoucherCode(v.code) === "WELCOME10"));
+  const welcome = await applyVoucherCode("welcome10", 66);
+  assert.ok(welcome);
+  assert.equal(welcome.code, "WELCOME10");
+  assert.equal(welcome.discount, 6.6);
+
+  const quotedWelcome = await quoteCart(
+    [{ sku: "SQ0179319", qty: 3 }],
+    "delivery",
+    false,
+    "WELCOME10"
+  );
+  assert.equal(quotedWelcome.totals.subtotal, 66);
+  assert.equal(quotedWelcome.totals.discount, 6.6);
+  assert.equal(quotedWelcome.totals.delivery, 15);
+  assert.equal(quotedWelcome.totals.total, 74.4);
+  assert.equal(quotedWelcome.voucher?.code, "WELCOME10");
+
+  const fixed = await upsertVoucher({
+    code: "SAVE5",
+    type: "fixed",
+    value: 5,
+    active: true,
+    note: "test fixed",
+  });
+  assert.equal(fixed.code, "SAVE5");
+  const quotedFixed = await quoteCart(
+    [{ sku: "SQ0179319", qty: 3 }],
+    "collect",
+    false,
+    "save5"
+  );
+  assert.equal(quotedFixed.totals.discount, 5);
+  assert.equal(quotedFixed.totals.total, 61);
+
+  const fixedCap = await applyVoucherCode("SAVE5", 3);
+  assert.equal(fixedCap?.discount, 3);
+
+  await assert.rejects(() => applyVoucherCode("NOPE-CODE", 66), /Invalid voucher/i);
+  await setVoucherActive("SAVE5", false);
+  await assert.rejects(() => applyVoucherCode("SAVE5", 66), /inactive/i);
+
+  const voucherOrder = await createOrder({
+    customer_name: "Voucher Guest",
+    customer_phone: "+65 9444 4444",
+    customer_email: "voucher@example.com",
+    delivery_kind: "collect",
+    address: "",
+    notes: "",
+    express_slot: false,
+    lines: [{ sku: "SQ0179319", qty: 3 }],
+    voucher_code: "welcome10",
+  });
+  assert.equal(voucherOrder.voucher_code, "WELCOME10");
+  assert.equal(voucherOrder.discount, 6.6);
+  assert.equal(voucherOrder.total, 59.4);
+  assert.equal(voucherOrder.delivery_fee, 0);
+
+  await assert.rejects(
+    () =>
+      createOrder({
+        customer_name: "Bad Code",
+        customer_phone: "+65 9555 5555",
+        customer_email: "",
+        delivery_kind: "collect",
+        address: "",
+        notes: "",
+        express_slot: false,
+        lines: [{ sku: "SQ0179319", qty: 3 }],
+        voucher_code: "NOTREAL",
+      }),
+    /Invalid voucher/i
+  );
+
+    const settings = await updateSettings({ min_order: 90, uen: "", gst_reg: "" });
   assert.equal(settings.min_order, 90);
   assert.equal(settings.uen, "");
   assert.equal((await getSettings()).min_order, 90);

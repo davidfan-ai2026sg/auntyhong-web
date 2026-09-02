@@ -16,13 +16,18 @@ export default async function CartPage() {
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not price basket";
   }
+  const belowMinimum = Boolean(quote?.totals.belowMinimum);
   return (
     <div className="mx-auto max-w-3xl px-5 py-14">
       <p className="kicker">Your basket</p>
       <h1 className="display mt-2 text-6xl">Basket</h1>
       {!lines.length ? (
         <p className="mt-8 text-cocoa/70">
-          Empty for now. <Link href="/store" className="border-b border-gold">Browse the pantry</Link>.
+          Empty for now.{" "}
+          <Link href="/store" className="border-b border-gold">
+            Browse the pantry
+          </Link>
+          .
         </p>
       ) : (
         <>
@@ -42,15 +47,29 @@ export default async function CartPage() {
                     : formatSgd(quote.settings.delivery_fee)}
                 </span>
               </div>
-              {quote.totals.belowMinimum ? (
-                <p className="text-cinnabar">Minimum online order is {formatSgd(quote.totals.minOrder)}.</p>
+              {belowMinimum ? (
+                <p className="text-cinnabar font-medium">
+                  Add a little more — minimum is {formatSgd(quote.totals.minOrder)}.
+                </p>
               ) : null}
-              <Link
-                href="/checkout"
-                className="mt-6 inline-block bg-cinnabar text-parchment px-6 py-3"
-              >
-                Checkout
-              </Link>
+              <div className="mt-6 flex flex-wrap items-center gap-4">
+                {!belowMinimum ? (
+                  <Link href="/checkout" className="inline-block bg-cinnabar text-parchment px-6 py-3">
+                    Checkout
+                  </Link>
+                ) : (
+                  <span
+                    className="inline-block bg-cinnabar/30 text-parchment px-6 py-3 cursor-not-allowed"
+                    aria-disabled="true"
+                    title={`Minimum order is ${formatSgd(quote.totals.minOrder)}`}
+                  >
+                    Checkout
+                  </span>
+                )}
+                <Link href="/store" className="border-b border-gold text-cocoa">
+                  Continue shopping
+                </Link>
+              </div>
             </div>
           ) : null}
         </>

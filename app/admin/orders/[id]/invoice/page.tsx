@@ -86,6 +86,12 @@ export default async function AdminInvoicePage({
           <span>Subtotal</span>
           <span>{formatSgd(order.subtotal)}</span>
         </div>
+        {order.discount ? (
+          <div className="flex justify-between">
+            <span>Discount{order.voucher_code ? ` (${order.voucher_code})` : ""}</span>
+            <span>−{formatSgd(order.discount)}</span>
+          </div>
+        ) : null}
         <div className="flex justify-between">
           <span>Delivery</span>
           <span>{formatSgd(order.delivery_fee)}</span>

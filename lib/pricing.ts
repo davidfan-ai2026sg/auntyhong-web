@@ -17,6 +17,8 @@ export function computeTotals(input: {
   deliveryFeeUnder?: number;
   freeDeliveryAt?: number;
   expressFee?: number;
+  /** Discount applied to subtotal before delivery. Capped at subtotal. */
+  discount?: number;
 }) {
   const minOrder = input.minOrder ?? 50;
   const deliveryFeeUnder = input.deliveryFeeUnder ?? 15;
@@ -24,6 +26,9 @@ export function computeTotals(input: {
   const expressFee = input.expressFee ?? 40;
   const subtotal = roundMoney(input.subtotal);
   const belowMinimum = subtotal > 0 && subtotal < minOrder;
+  const discount = roundMoney(
+    Math.min(subtotal, Math.max(0, Number(input.discount) || 0))
+  );
   let delivery = 0;
   if (input.deliveryKind === "delivery") {
     delivery = subtotal >= freeDeliveryAt ? 0 : deliveryFeeUnder;
@@ -32,8 +37,9 @@ export function computeTotals(input: {
   delivery = roundMoney(delivery);
   return {
     subtotal,
+    discount,
     delivery,
-    total: roundMoney(subtotal + delivery),
+    total: roundMoney(subtotal - discount + delivery),
     belowMinimum,
     minOrder,
     freeDeliveryAt,
