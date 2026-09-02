@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 import { isAdmin } from "@/lib/auth";
 import { listOrders, listEnquiries } from "@/lib/db";
+import { fulfillmentBucket } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,6 +14,10 @@ export default async function AdminHome() {
   if (!(await isAdmin())) redirect("/admin/login");
   const orders = await listOrders();
   const enquiries = await listEnquiries();
+  const awaitingPack = orders.filter((o) => {
+    const b = fulfillmentBucket(o.status);
+    return b === "paid" || b === "packing" || b === "ready";
+  }).length;
   return (
     <div>
       <h1 className="display text-4xl">Overview</h1>
@@ -22,10 +27,8 @@ export default async function AdminHome() {
           <p className="display text-4xl mt-2">{orders.length}</p>
         </div>
         <div className="border border-sand p-5">
-          <p className="kicker">Awaiting kitchen</p>
-          <p className="display text-4xl mt-2">
-            {orders.filter((o) => ["payment_submitted", "paid", "in_production", "ready", "packing"].includes(o.status)).length}
-          </p>
+          <p className="kicker">Awaiting fulfillment</p>
+          <p className="display text-4xl mt-2">{awaitingPack}</p>
         </div>
         <div className="border border-sand p-5">
           <p className="kicker">Enquiries</p>

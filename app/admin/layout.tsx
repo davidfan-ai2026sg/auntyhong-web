@@ -18,8 +18,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Link className="block hover:text-gold" href="/admin/orders">
           Orders
         </Link>
-        <Link className="block hover:text-gold" href="/admin/production">
-          Production
+        <Link className="block hover:text-gold" href="/admin/fulfillment">
+          Fulfillment
         </Link>
         <Link className="block hover:text-gold" href="/admin/products">
           Products
