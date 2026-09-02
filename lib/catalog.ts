@@ -168,10 +168,10 @@ export async function categories() {
 
 export async function featured() {
   const order = [
+    "the-prosperity-mix",
     "lucky-duo-cookies-giftset",
     "bundle-of-joy-cny-gift-set",
     "spring-blossom-box",
-    "the-prosperity-mix",
     "osmanthus-long-jing-tea",
     "melty-kuih-bangkit",
   ];
