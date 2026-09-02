@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Product } from "@/lib/catalog";
 import { formatSgd } from "@/lib/pricing";
+import { QuantityStepper } from "@/components/QuantityStepper";
 
 export function AddToCart({ product }: { product: Product }) {
   const router = useRouter();
@@ -100,13 +101,7 @@ export function AddToCart({ product }: { product: Product }) {
       ) : null}
 
       <div className="flex items-center gap-3">
-        <input
-          type="number"
-          min={1}
-          value={qty}
-          onChange={(e) => setQty(Math.max(1, Number(e.target.value)))}
-          className="w-20 border border-sand bg-parchment px-3 py-2"
-        />
+        <QuantityStepper value={qty} min={1} onChange={setQty} />
         <button
           type="button"
           disabled={!canAdd}
