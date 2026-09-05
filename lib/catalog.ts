@@ -41,16 +41,9 @@ export type ProductWrite = Partial<Product> & {
 };
 
 const IMAGE_OVERRIDES: Record<string, string> = {
-  "shrimp-fries":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1609214836429-1JMGD3QPI6YG0STATGX3/1.+Shrimp+Fries.png",
+  // Pending OpenAI batch SKUs still on Squarespace until Studio delivers.
   "tom-yum-goong-cashews":
     "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1665729590039-MTTGORAKZP5T1MZAY5EM/_5D_7256-Edit.jpg",
-  "the-prosperity-mix":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1665979008283-IMZCX13TDQHB1XXJ7S7V/_5D_7496-Edit.jpg",
-  "family-pack-organic-handmade-noodles":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/47525652-2f05-4799-8110-cb71093e3d5c/Aunty+Hong%27s+Organic+Handmade+Noodles+-+Family+Pack+%28Original%29.jpg",
-  "lucky-duo-cookies-giftset":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1701063546598-2YJSVOAMNWCQL6ECMVLD/Lucky+Duo_Low+Res.jpg",
 };
 
 const images = imagesJson as { products: Record<string, string>; named: Record<string, string> };
