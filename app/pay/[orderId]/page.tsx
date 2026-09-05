@@ -41,6 +41,21 @@ export default async function PayPage({ params }: { params: Promise<{ orderId: s
         Order {order.order_no}. Amount {formatSgd(Number(order.total))}. Card stays on this page when
         Stripe test keys are set; PayNow QR is the kitchen fallback.
       </p>
+      {Array.isArray(order.items) && order.items.length ? (
+        <ul className="mt-6 space-y-2 border border-sand bg-parchment/60 p-4 text-sm">
+          {order.items.map((it) => (
+            <li key={`${it.id}-${it.sku}`} className="flex justify-between gap-3">
+              <span>
+                {it.qty}× {it.product_title}
+                {it.variant_label && it.variant_label !== "Standard" ? (
+                  <span className="block text-xs text-cocoa/55">{it.variant_label}</span>
+                ) : null}
+              </span>
+              <span className="shrink-0">{formatSgd(Number(it.unit_price) * Number(it.qty))}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="mt-8 bg-parchment border border-sand p-6 text-center">
         {qr ? (
           <div className="mx-auto w-[180px] text-cocoa" dangerouslySetInnerHTML={{ __html: qr }} />

@@ -810,13 +810,22 @@ export async function rememberStripePaymentIntent(id: number, paymentIntentId: s
 export async function markOrderPaid(id: number, paymentMethod = "stripe") {
   const cur = await getOrderAnywhere(id);
   if (!cur) return undefined;
+  let next = cur;
   if (cur.status === "pending_payment" || cur.status === "payment_submitted") {
-    return setOrderStatus(id, "paid", paymentMethod);
+    next = (await setOrderStatus(id, "paid", paymentMethod)) || cur;
+  } else if (!cur.payment_method && paymentMethod) {
+    next = (await setOrderStatus(id, cur.status, paymentMethod)) || cur;
   }
-  if (!cur.payment_method && paymentMethod) {
-    return setOrderStatus(id, cur.status, paymentMethod);
+  // Fire-and-forget paid notice for WhatsApp-origin orders (Hong).
+  if (next && String(next.notes || "").includes("[whatsapp]")) {
+    try {
+      const { notifyWaOrderPaid } = await import("./wa-orders");
+      void notifyWaOrderPaid(next);
+    } catch {
+      /* optional */
+    }
   }
-  return cur;
+  return next;
 }
 
 export type Enquiry = {
