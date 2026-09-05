@@ -769,12 +769,11 @@ export async function setOrderStatus(id: number, status: OrderStatus, paymentMet
       /* sqlite unavailable */
     }
   }
-  if (isPaidLike(status)) {
-    try {
-      await upsertDeskOrder(next);
-    } catch (e) {
-      console.error("[desk] order upsert failed");
-    }
+  // Always mirror kitchen desk (incl. cancelled / refunded — not only paid-like).
+  try {
+    await upsertDeskOrder(next);
+  } catch (e) {
+    console.error("[desk] order upsert failed");
   }
   return next;
 }
