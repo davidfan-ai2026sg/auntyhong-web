@@ -40,11 +40,7 @@ export type ProductWrite = Partial<Product> & {
   options?: AdditionalField[];
 };
 
-const IMAGE_OVERRIDES: Record<string, string> = {
-  // Pending OpenAI batch SKUs still on Squarespace until Studio delivers.
-  "tom-yum-goong-cashews":
-    "https://images.squarespace-cdn.com/content/v1/5fd98b8d82917438944c7944/1665729590039-MTTGORAKZP5T1MZAY5EM/_5D_7256-Edit.jpg",
-};
+const IMAGE_OVERRIDES: Record<string, string> = {};
 
 const images = imagesJson as { products: Record<string, string>; named: Record<string, string> };
 
